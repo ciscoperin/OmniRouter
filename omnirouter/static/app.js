@@ -14,6 +14,17 @@ const els = {
   statFwd: document.getElementById("stat-fwd"),
   statFail: document.getElementById("stat-fail"),
   statFlight: document.getElementById("stat-flight"),
+  // Configuration modal
+  menuConfig: document.getElementById("menu-configuration"),
+  configOverlay: document.getElementById("config-overlay"),
+  configClose: document.getElementById("config-close"),
+  configCancel: document.getElementById("config-cancel"),
+  configForm: document.getElementById("config-form"),
+  configSave: document.getElementById("config-save"),
+  configError: document.getElementById("config-error"),
+  destHost: document.getElementById("dest-host"),
+  destPort: document.getElementById("dest-port"),
+  destAet: document.getElementById("dest-aet"),
 };
 
 let isRunning = true;
@@ -128,6 +139,93 @@ function connectWs() {
 els.clearBtn.addEventListener("click", async () => {
   await fetch("/api/logs/clear", { method: "POST" });
   els.logArea.innerHTML = "";
+});
+
+// --- Configuration modal --------------------------------------------------
+function openConfigModal() {
+  fetch("/api/destination")
+    .then((r) => r.json())
+    .then((d) => {
+      els.destHost.value = d.host;
+      els.destPort.value = d.port;
+      els.destAet.value = d.aet;
+      const mode = d.use_tls ? "tls" : "plain";
+      const radio = els.configForm.querySelector(
+        `input[name="mode"][value="${mode}"]`,
+      );
+      if (radio) radio.checked = true;
+      els.configError.hidden = true;
+      els.configError.textContent = "";
+      els.configOverlay.hidden = false;
+      els.destHost.focus();
+    })
+    .catch(() => {
+      els.configError.textContent = "Could not load current configuration.";
+      els.configError.hidden = false;
+      els.configOverlay.hidden = false;
+    });
+}
+
+function closeConfigModal() {
+  els.configOverlay.hidden = true;
+}
+
+els.menuConfig.addEventListener("click", openConfigModal);
+els.configClose.addEventListener("click", closeConfigModal);
+els.configCancel.addEventListener("click", closeConfigModal);
+els.configOverlay.addEventListener("click", (e) => {
+  if (e.target === els.configOverlay) closeConfigModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !els.configOverlay.hidden) closeConfigModal();
+});
+
+els.configForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const formData = new FormData(els.configForm);
+  const mode = formData.get("mode");
+  if (mode !== "plain" && mode !== "tls") {
+    els.configError.textContent = "Please select a transfer mode.";
+    els.configError.hidden = false;
+    return;
+  }
+  const payload = {
+    host: String(formData.get("host") || "").trim(),
+    port: Number(formData.get("port")),
+    aet: String(formData.get("aet") || "").trim(),
+    use_tls: mode === "tls",
+  };
+
+  els.configSave.disabled = true;
+  els.configError.hidden = true;
+  try {
+    const r = await fetch("/api/destination", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      let msg = `Save failed (${r.status})`;
+      try {
+        const data = await r.json();
+        if (data && data.detail) {
+          msg = Array.isArray(data.detail)
+            ? data.detail.map((d) => d.msg || JSON.stringify(d)).join(", ")
+            : String(data.detail);
+        }
+      } catch (_) {}
+      els.configError.textContent = msg;
+      els.configError.hidden = false;
+      return;
+    }
+    closeConfigModal();
+    fetchStatus();
+  } catch (err) {
+    els.configError.textContent = `Network error: ${err}`;
+    els.configError.hidden = false;
+  } finally {
+    els.configSave.disabled = false;
+  }
 });
 
 els.toggleBtn.addEventListener("click", async () => {

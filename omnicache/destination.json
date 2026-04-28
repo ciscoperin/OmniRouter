@@ -1,0 +1,6 @@
+{
+  "host": "wan.example.com",
+  "port": 11112,
+  "aet": "REMOTE_PACS",
+  "use_tls": true
+}

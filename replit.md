@@ -30,8 +30,8 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 Located at `omnirouter/`. Standalone Python application — not a JS workspace package.
 
-- DICOM SCP listens on `0.0.0.0:7776` AE `OMNI` (fixed per spec)
-- Forwards received studies to a configurable PACS over DICOM TLS (`pynetdicom`)
+- DICOM SCP listens on `0.0.0.0:7775` AE `OMNI` (fixed per spec)
+- Forwards received studies to a configurable PACS over DICOM TLS or plain DICOM (`pynetdicom`); destination editable via the UI's **Configuration** menu, persisted to `omnicache/destination.json`
 - FastAPI web UI on `$PORT` (default 5000) with WebSocket live log streaming
 - Cache directory: `./omnicache/`
 - Run locally: `python -m omnirouter.main` (workflow: **OmniRouter**)

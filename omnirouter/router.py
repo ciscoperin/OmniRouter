@@ -29,10 +29,10 @@ from pynetdicom.sop_class import Verification
 
 from .config import (
     CACHE_DIR,
-    DESTINATION,
     LISTEN_BIND_HOST,
     LISTEN_PORT,
     LOCAL_AET,
+    get_destination,
 )
 from .tls_util import build_client_ssl_context
 
@@ -252,14 +252,15 @@ class OmniRouter:
         if not files:
             return
 
+        dest = get_destination()
         log.info(
             "Sending study %s containing %d file(s) → %s@%s:%s (%s)",
             state.study_uid,
             len(files),
-            DESTINATION.aet,
-            DESTINATION.host,
-            DESTINATION.port,
-            "TLS" if DESTINATION.use_tls else "plain",
+            dest.aet,
+            dest.host,
+            dest.port,
+            "TLS" if dest.use_tls else "plain",
         )
 
         ae = AE(ae_title=LOCAL_AET)
@@ -281,10 +282,10 @@ class OmniRouter:
                 log.exception("Could not read %s for forwarding", f)
 
         tls_args = None
-        if DESTINATION.use_tls:
+        if dest.use_tls:
             try:
                 ctx = build_client_ssl_context()
-                tls_args = (ctx, DESTINATION.host)
+                tls_args = (ctx, dest.host)
             except Exception:
                 log.exception("Failed to build TLS context")
                 with self._lock:
@@ -293,9 +294,9 @@ class OmniRouter:
 
         try:
             assoc = ae.associate(
-                DESTINATION.host,
-                DESTINATION.port,
-                ae_title=DESTINATION.aet,
+                dest.host,
+                dest.port,
+                ae_title=dest.aet,
                 tls_args=tls_args,
             )
         except Exception:
@@ -307,9 +308,9 @@ class OmniRouter:
         if not assoc.is_established:
             log.error(
                 "Association rejected/failed: %s@%s:%s",
-                DESTINATION.aet,
-                DESTINATION.host,
-                DESTINATION.port,
+                dest.aet,
+                dest.host,
+                dest.port,
             )
             with self._lock:
                 self._stats["forward_failures"] += 1

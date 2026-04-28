@@ -7,12 +7,14 @@ received study to a remote PACS over DICOM TLS.
 | Item              | Value (fixed in v1)             |
 | ----------------- | ------------------------------- |
 | Listening address | local machine IP (auto-detected) |
-| Listening port    | **7776**                        |
+| Listening port    | **7775**                        |
 | Local AE Title    | **OMNI**                        |
 | Cache directory   | `./omnicache`                   |
 | Web UI port       | `5000` (or `$PORT`)             |
 
-The destination (host / port / AE / TLS settings) is configured via
+The destination (host / port / AE / transfer mode) is editable from the
+**Configuration** menu in the web UI and is persisted to
+`omnicache/destination.json`. Initial defaults can also be supplied via
 environment variables — see *Configuration* below.
 
 ## Run interactively (any OS, for testing)
@@ -86,7 +88,11 @@ The UI mirrors the original OmniRouter layout:
 
 * **Stop / Start** the listener
 * Live status panel (listening address, port, AET, cache dir)
-* Destination summary (with TLS state)
+* Destination summary (with transfer-mode state)
+* **Configuration** menu — edit destination Host / Port / AE Title and
+  switch between **Regular DICOM** and **DICOM TLS** transfer at runtime.
+  Changes persist to `omnicache/destination.json` and apply to the next
+  outbound association immediately (no restart).
 * Live log stream (INFO / WARN / ERROR colorised)
 * Counters (received, forwarded, failures, studies in flight)
 * **Clear Log** button
@@ -100,7 +106,7 @@ From any DICOM client on the same machine you can verify with `echoscu`
 (part of `dcmtk`):
 
 ```bash
-echoscu -aec OMNI -aet TESTER 127.0.0.1 7776
+echoscu -aec OMNI -aet TESTER 127.0.0.1 7775
 ```
 
 …and you should see a `C-ECHO received` line in the UI log.

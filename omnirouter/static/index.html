@@ -24,6 +24,9 @@
       <div class="menubar">
         <span class="menu-item">File</span>
         <span class="menu-item">Help</span>
+        <span id="menu-configuration" class="menu-item menu-item-action">
+          Configuration
+        </span>
       </div>
 
       <div class="toolbar">
@@ -60,6 +63,89 @@
         <span>Forwarded: <b id="stat-fwd">0</b></span>
         <span>Failures: <b id="stat-fail">0</b></span>
         <span>Studies in flight: <b id="stat-flight">0</b></span>
+      </div>
+    </div>
+
+    <!-- Configuration modal ------------------------------------------- -->
+    <div id="config-overlay" class="modal-overlay" hidden>
+      <div class="modal" role="dialog" aria-labelledby="config-title">
+        <div class="modal-header">
+          <h2 id="config-title">Destination Configuration</h2>
+          <button id="config-close" class="modal-close" aria-label="Close">
+            ×
+          </button>
+        </div>
+        <form id="config-form" class="modal-body" novalidate>
+          <p class="modal-hint">
+            Studies received on <span class="mono">OMNI@:7775</span> are
+            forwarded to this destination.
+          </p>
+
+          <label class="field">
+            <span>Destination Host / IP</span>
+            <input
+              type="text"
+              id="dest-host"
+              name="host"
+              required
+              maxlength="255"
+              placeholder="pacs.example.org"
+            />
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Port</span>
+              <input
+                type="number"
+                id="dest-port"
+                name="port"
+                required
+                min="1"
+                max="65535"
+                placeholder="11112"
+              />
+            </label>
+            <label class="field">
+              <span>AE Title</span>
+              <input
+                type="text"
+                id="dest-aet"
+                name="aet"
+                required
+                maxlength="16"
+                placeholder="REMOTE_PACS"
+              />
+            </label>
+          </div>
+
+          <fieldset class="transfer-mode">
+            <legend>Transfer Mode</legend>
+            <label class="radio">
+              <input type="radio" name="mode" value="plain" />
+              <span>Regular DICOM <em>(unencrypted)</em></span>
+            </label>
+            <label class="radio">
+              <input type="radio" name="mode" value="tls" />
+              <span>DICOM TLS <em>(encrypted)</em></span>
+            </label>
+          </fieldset>
+
+          <p id="config-error" class="modal-error" hidden></p>
+
+          <div class="modal-actions">
+            <button
+              type="button"
+              id="config-cancel"
+              class="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button type="submit" id="config-save" class="btn-primary">
+              Save
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 

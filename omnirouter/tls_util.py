@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-from .config import DESTINATION
+from .config import get_destination
 
 log = logging.getLogger("omnirouter.tls")
 
@@ -78,8 +78,9 @@ def build_client_ssl_context() -> ssl.SSLContext:
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
-    cert = DESTINATION.client_cert
-    key = DESTINATION.client_key
+    dest = get_destination()
+    cert = dest.client_cert
+    key = dest.client_key
 
     if not cert or not key:
         cert_path = CERT_DIR / "omnirouter.crt"
@@ -90,8 +91,8 @@ def build_client_ssl_context() -> ssl.SSLContext:
 
     ctx.load_cert_chain(certfile=cert, keyfile=key)
 
-    if DESTINATION.verify_peer and DESTINATION.ca_file:
-        ctx.load_verify_locations(cafile=DESTINATION.ca_file)
+    if dest.verify_peer and dest.ca_file:
+        ctx.load_verify_locations(cafile=dest.ca_file)
         ctx.verify_mode = ssl.CERT_REQUIRED
         ctx.check_hostname = True
     else:

@@ -2,6 +2,8 @@
 
 Serves the single-page UI at ``/`` and exposes:
     GET  /api/status        — point-in-time status snapshot
+    GET  /api/destination   — current destination settings
+    PUT  /api/destination   — update destination (host, port, aet, use_tls)
     GET  /api/logs          — full ring buffer (used on first load)
     POST /api/logs/clear    — clear the on-screen log
     POST /api/listener/stop — stop the DICOM listener
@@ -16,16 +18,18 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from .config import (
     CACHE_DIR,
-    DESTINATION,
     LISTEN_DISPLAY_HOST,
     LISTEN_PORT,
     LOCAL_AET,
+    destination_store,
+    get_destination,
 )
 from .log_bus import bus
 from .router import router as dicom_router
@@ -48,28 +52,59 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="OmniRouter", lifespan=lifespan)
 
 
+def _destination_payload() -> dict:
+    d = get_destination()
+    return {
+        "host": d.host,
+        "port": d.port,
+        "aet": d.aet,
+        "use_tls": d.use_tls,
+        "verify_peer": d.verify_peer,
+        "client_cert_configured": bool(d.client_cert),
+        "ca_configured": bool(d.ca_file),
+    }
+
+
 @app.get("/api/status")
 async def status() -> JSONResponse:
     return JSONResponse(
         {
-            "version": "1.0.0",
+            "version": "1.0.1",
             "listening_address": LISTEN_DISPLAY_HOST,
             "listening_port": LISTEN_PORT,
             "local_aet": LOCAL_AET,
             "cache_dir": CACHE_DIR.name,
             "cache_path": str(CACHE_DIR),
-            "destination": {
-                "host": DESTINATION.host,
-                "port": DESTINATION.port,
-                "aet": DESTINATION.aet,
-                "use_tls": DESTINATION.use_tls,
-                "verify_peer": DESTINATION.verify_peer,
-                "client_cert_configured": bool(DESTINATION.client_cert),
-                "ca_configured": bool(DESTINATION.ca_file),
-            },
+            "destination": _destination_payload(),
             "router": dicom_router.status(),
         }
     )
+
+
+@app.get("/api/destination")
+async def get_destination_endpoint() -> JSONResponse:
+    return JSONResponse(_destination_payload())
+
+
+class DestinationUpdate(BaseModel):
+    host: str = Field(..., min_length=1, max_length=255)
+    port: int = Field(..., ge=1, le=65535)
+    aet: str = Field(..., min_length=1, max_length=16)
+    use_tls: bool
+
+
+@app.put("/api/destination")
+async def update_destination(update: DestinationUpdate) -> JSONResponse:
+    try:
+        destination_store.update(
+            host=update.host,
+            port=update.port,
+            aet=update.aet,
+            use_tls=update.use_tls,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(_destination_payload())
 
 
 @app.get("/api/logs")
@@ -101,7 +136,6 @@ async def ws_logs(ws: WebSocket) -> None:
     await ws.accept()
     queue = bus.subscribe()
     try:
-        # Send the existing buffer so a fresh client sees historical lines.
         await ws.send_json({"type": "snapshot", "entries": bus.snapshot()})
         while True:
             entry = await queue.get()
