@@ -1,0 +1,332 @@
+/* OmniRouter UI — modeled on the Windows Forms layout from the original. */
+
+:root {
+  --win-bg: #f0f0f0;
+  --win-border: #b0b0b0;
+  --panel-border: #adadad;
+  --titlebar-bg: #ffffff;
+  --titlebar-fg: #1f1f1f;
+  --menu-bg: #f7f7f7;
+  --menu-fg: #1f1f1f;
+  --button-bg: #e1e1e1;
+  --button-bg-hover: #d4eaff;
+  --button-border: #adadad;
+  --button-border-hover: #0078d7;
+  --log-bg: #ffffff;
+  --log-fg: #1a1a1a;
+  --log-info: #1f4e79;
+  --log-warn: #b35900;
+  --log-error: #b00020;
+  --log-debug: #555555;
+  --statusbar-bg: #efefef;
+  --statusbar-fg: #333;
+  --accent: #0078d7;
+  --mono: ui-monospace, "Cascadia Mono", "Consolas", "Menlo", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #2b2b2b;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  font-size: 13px;
+  color: var(--titlebar-fg);
+}
+
+.window {
+  margin: 12px auto;
+  width: min(1180px, calc(100% - 24px));
+  background: var(--win-bg);
+  border: 1px solid var(--win-border);
+  border-radius: 4px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: calc(100vh - 24px);
+}
+
+/* Titlebar -------------------------------------------------------------- */
+.titlebar {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--titlebar-bg);
+  border-bottom: 1px solid #e3e3e3;
+  padding-left: 8px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--titlebar-fg);
+}
+
+.title-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.window-controls {
+  display: flex;
+  height: 100%;
+}
+
+.win-btn {
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.win-btn:hover {
+  background: #e5e5e5;
+}
+
+.win-btn.close:hover {
+  background: #e81123;
+}
+
+.win-btn.close:hover::before,
+.win-btn.close:hover::after {
+  background: #fff;
+}
+
+.win-btn::before,
+.win-btn::after {
+  content: "";
+  position: absolute;
+  background: #1f1f1f;
+}
+
+.win-btn.min::before {
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  transform: translate(-50%, -50%);
+}
+
+.win-btn.max::before {
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+  border: 1px solid #1f1f1f;
+}
+
+.win-btn.close::before,
+.win-btn.close::after {
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  transform-origin: center;
+}
+
+.win-btn.close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.win-btn.close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* Menubar --------------------------------------------------------------- */
+.menubar {
+  background: var(--menu-bg);
+  padding: 4px 10px;
+  display: flex;
+  gap: 14px;
+  border-bottom: 1px solid #e3e3e3;
+  font-size: 12px;
+}
+
+.menu-item {
+  padding: 2px 6px;
+  cursor: default;
+  color: var(--menu-fg);
+}
+
+.menu-item:hover {
+  background: #e5f1fb;
+}
+
+/* Toolbar / status panel ----------------------------------------------- */
+.toolbar {
+  padding: 14px 14px 8px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.btn-stop,
+.btn-secondary {
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  font-size: 13px;
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 2px;
+  padding: 6px 18px;
+  min-width: 92px;
+  cursor: pointer;
+  align-self: center;
+  color: #1f1f1f;
+}
+
+.btn-stop:hover,
+.btn-secondary:hover {
+  background: var(--button-bg-hover);
+  border-color: var(--button-border-hover);
+}
+
+.btn-stop:active,
+.btn-secondary:active {
+  background: #c4e0f7;
+}
+
+.btn-stop.is-stopped {
+  background: #d6f5d6;
+  border-color: #4a934a;
+}
+
+.status-panel {
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+  padding: 10px 16px;
+  background: #fafafa;
+  display: grid;
+  gap: 6px;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 110px 1fr;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.label {
+  font-weight: 600;
+  color: #333;
+}
+
+.label-right {
+  text-align: left;
+  padding-left: 12px;
+}
+
+.value {
+  color: #111;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* Destination bar ------------------------------------------------------- */
+.dest-bar {
+  margin: 0 14px 8px;
+  padding: 6px 12px;
+  background: #fff8e1;
+  border: 1px solid #f0d893;
+  border-radius: 2px;
+  font-size: 12px;
+  color: #5c4400;
+}
+
+.dest-bar .mono {
+  color: #1f1f1f;
+}
+
+/* Log area -------------------------------------------------------------- */
+.log-area {
+  flex: 1;
+  margin: 0 14px 12px;
+  background: var(--log-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-line {
+  padding: 1px 0;
+}
+
+.log-line.level-INFO {
+  color: var(--log-info);
+}
+
+.log-line.level-WARNING,
+.log-line.level-WARN {
+  color: var(--log-warn);
+}
+
+.log-line.level-ERROR,
+.log-line.level-CRITICAL {
+  color: var(--log-error);
+  font-weight: 600;
+}
+
+.log-line.level-DEBUG {
+  color: var(--log-debug);
+}
+
+.log-line .ts {
+  color: #555;
+  margin-right: 6px;
+}
+
+.log-line .lvl {
+  display: inline-block;
+  min-width: 56px;
+}
+
+/* Statusbar ------------------------------------------------------------- */
+.statusbar {
+  background: var(--statusbar-bg);
+  border-top: 1px solid #d6d6d6;
+  padding: 4px 12px;
+  display: flex;
+  gap: 18px;
+  font-size: 12px;
+  color: var(--statusbar-fg);
+}
+
+.statusbar .spacer {
+  flex: 1;
+}
+
+.conn-state {
+  color: #888;
+}
+
+.conn-state.is-up {
+  color: #1f7a1f;
+  font-weight: 600;
+}
+
+.conn-state.is-down {
+  color: #b00020;
+  font-weight: 600;
+}

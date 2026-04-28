@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OmniRouter</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  </head>
+  <body>
+    <div class="window">
+      <div class="titlebar">
+        <div class="title">
+          <img src="/static/favicon.svg" alt="" class="title-icon" />
+          <span>OmniRouter</span>
+        </div>
+        <div class="window-controls">
+          <button class="win-btn min" aria-label="minimize"></button>
+          <button class="win-btn max" aria-label="maximize"></button>
+          <button class="win-btn close" aria-label="close"></button>
+        </div>
+      </div>
+
+      <div class="menubar">
+        <span class="menu-item">File</span>
+        <span class="menu-item">Help</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="toggle-listener" class="btn-stop">Stop</button>
+
+        <div class="status-panel">
+          <div class="status-row">
+            <span class="label">Listening Address</span>
+            <span id="listen-address" class="value mono">—</span>
+            <span class="label label-right">Local AET</span>
+            <span id="local-aet" class="value mono">—</span>
+          </div>
+          <div class="status-row">
+            <span class="label">Listening Port</span>
+            <span id="listen-port" class="value mono">—</span>
+            <span class="label label-right">Cache Dir</span>
+            <span id="cache-dir" class="value mono">—</span>
+          </div>
+        </div>
+
+        <button id="clear-log" class="btn-secondary">Clear Log</button>
+      </div>
+
+      <div class="dest-bar" id="dest-bar">
+        Destination: <span id="dest-summary" class="mono">—</span>
+      </div>
+
+      <div class="log-area" id="log-area" role="log" aria-live="polite"></div>
+
+      <div class="statusbar">
+        <span id="conn-state" class="conn-state">Connecting…</span>
+        <span class="spacer"></span>
+        <span>Received: <b id="stat-recv">0</b></span>
+        <span>Forwarded: <b id="stat-fwd">0</b></span>
+        <span>Failures: <b id="stat-fail">0</b></span>
+        <span>Studies in flight: <b id="stat-flight">0</b></span>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

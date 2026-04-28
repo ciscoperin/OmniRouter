@@ -25,3 +25,16 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## OmniRouter (Python DICOM Router)
+
+Located at `omnirouter/`. Standalone Python application — not a JS workspace package.
+
+- DICOM SCP listens on `0.0.0.0:7776` AE `OMNI` (fixed per spec)
+- Forwards received studies to a configurable PACS over DICOM TLS (`pynetdicom`)
+- FastAPI web UI on `$PORT` (default 5000) with WebSocket live log streaming
+- Cache directory: `./omnicache/`
+- Run locally: `python -m omnirouter.main` (workflow: **OmniRouter**)
+- Windows Service hosting via `pywin32` (`omnirouter/service_windows.py`) or NSSM — see `omnirouter/README.md`
+- Outbound destination configured via `OMNI_DEST_*` env vars
+- Self-signed TLS client cert auto-generated under `omnicache/tls/` on first run; override with `OMNI_TLS_CERT` / `OMNI_TLS_KEY` / `OMNI_TLS_CA`
