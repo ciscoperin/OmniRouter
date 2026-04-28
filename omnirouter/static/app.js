@@ -25,6 +25,8 @@ const els = {
   destHost: document.getElementById("dest-host"),
   destPort: document.getElementById("dest-port"),
   destAet: document.getElementById("dest-aet"),
+  openConfigBtn: document.getElementById("open-config"),
+  connStateLabel: document.querySelector("#conn-state .conn-label"),
 };
 
 let isRunning = true;
@@ -40,11 +42,12 @@ function escapeHtml(s) {
 
 function appendLogLine(entry) {
   const line = document.createElement("div");
-  line.className = `log-line level-${entry.level}`;
+  const lvl = String(entry.level || "info").toLowerCase();
+  line.className = `log-line ${lvl}`;
   line.innerHTML =
     `<span class="ts">${escapeHtml(entry.ts)}</span>` +
     `<span class="lvl">${escapeHtml(entry.level)}</span>` +
-    `<span class="msg"> - ${escapeHtml(entry.message)}</span>`;
+    `<span class="msg">${escapeHtml(entry.message)}</span>`;
   els.logArea.appendChild(line);
 
   // Cap DOM size so the page stays responsive over long runs.
@@ -69,7 +72,14 @@ function replaceLog(entries) {
 function setRunning(running) {
   isRunning = running;
   els.toggleBtn.textContent = running ? "Stop" : "Start";
-  els.toggleBtn.classList.toggle("is-stopped", !running);
+  els.toggleBtn.classList.toggle("btn-stop", running);
+  els.toggleBtn.classList.toggle("btn-start", !running);
+}
+
+function setConn(state, label) {
+  els.connState.classList.toggle("is-up", state === "up");
+  els.connState.classList.toggle("is-down", state === "down");
+  if (els.connStateLabel) els.connStateLabel.textContent = label;
 }
 
 async function fetchStatus() {
@@ -103,9 +113,7 @@ function connectWs() {
   ws = new WebSocket(`${proto}://${location.host}/ws/logs`);
 
   ws.addEventListener("open", () => {
-    els.connState.textContent = "Live";
-    els.connState.classList.add("is-up");
-    els.connState.classList.remove("is-down");
+    setConn("up", "Live");
   });
 
   ws.addEventListener("message", (ev) => {
@@ -118,9 +126,7 @@ function connectWs() {
   });
 
   ws.addEventListener("close", () => {
-    els.connState.textContent = "Disconnected — reconnecting…";
-    els.connState.classList.remove("is-up");
-    els.connState.classList.add("is-down");
+    setConn("down", "Reconnecting…");
     if (!reconnectTimer) {
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
@@ -171,6 +177,8 @@ function closeConfigModal() {
 }
 
 els.menuConfig.addEventListener("click", openConfigModal);
+if (els.openConfigBtn)
+  els.openConfigBtn.addEventListener("click", openConfigModal);
 els.configClose.addEventListener("click", closeConfigModal);
 els.configCancel.addEventListener("click", closeConfigModal);
 els.configOverlay.addEventListener("click", (e) => {

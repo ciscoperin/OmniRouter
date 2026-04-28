@@ -3,68 +3,150 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OmniRouter</title>
+    <title>OmniPACS Router</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/static/style.css" />
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
   </head>
   <body>
-    <div class="window">
-      <div class="titlebar">
-        <div class="title">
-          <img src="/static/favicon.svg" alt="" class="title-icon" />
-          <span>OmniRouter</span>
-        </div>
-        <div class="window-controls">
-          <button class="win-btn min" aria-label="minimize"></button>
-          <button class="win-btn max" aria-label="maximize"></button>
-          <button class="win-btn close" aria-label="close"></button>
-        </div>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <img
+            src="/static/omnipacs-logo.png"
+            alt="OmniPACS"
+            class="brand-logo"
+          />
+          <span class="brand-divider"></span>
+          <span class="brand-product">DICOM Router</span>
+        </a>
+        <nav class="topbar-actions">
+          <span id="conn-state" class="conn-pill is-up">
+            <span class="conn-dot"></span>
+            <span class="conn-label">Connected</span>
+          </span>
+          <button id="menu-configuration" class="btn-config">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+            Configuration
+          </button>
+        </nav>
       </div>
+    </header>
 
-      <div class="menubar">
-        <span class="menu-item">File</span>
-        <span class="menu-item">Help</span>
-        <span id="menu-configuration" class="menu-item menu-item-action">
-          Configuration
-        </span>
-      </div>
+    <main class="page">
+      <section class="hero">
+        <p class="hero-eyebrow">Smarter . Faster . Secure</p>
+        <h1 class="hero-title">DICOM Routing Service</h1>
+        <p class="hero-subtitle">
+          Receives studies on the local DICOM port and forwards every instance
+          to your configured destination over secure DICOM TLS or plain DICOM.
+        </p>
+      </section>
 
-      <div class="toolbar">
-        <button id="toggle-listener" class="btn-stop">Stop</button>
+      <section class="grid">
+        <article class="card card-listener">
+          <header class="card-head">
+            <h2>Local Listener</h2>
+            <button id="toggle-listener" class="btn-pill btn-stop">Stop</button>
+          </header>
+          <dl class="kv">
+            <div>
+              <dt>Address</dt>
+              <dd id="listen-address" class="mono">—</dd>
+            </div>
+            <div>
+              <dt>Port</dt>
+              <dd id="listen-port" class="mono">—</dd>
+            </div>
+            <div>
+              <dt>AE Title</dt>
+              <dd id="local-aet" class="mono">—</dd>
+            </div>
+            <div>
+              <dt>Cache</dt>
+              <dd id="cache-dir" class="mono">—</dd>
+            </div>
+          </dl>
+        </article>
 
-        <div class="status-panel">
-          <div class="status-row">
-            <span class="label">Listening Address</span>
-            <span id="listen-address" class="value mono">—</span>
-            <span class="label label-right">Local AET</span>
-            <span id="local-aet" class="value mono">—</span>
+        <article class="card card-destination">
+          <header class="card-head">
+            <h2>Destination</h2>
+            <button id="open-config" class="btn-link">Edit</button>
+          </header>
+          <p id="dest-summary" class="dest-summary">—</p>
+          <p class="card-foot">
+            Studies are forwarded once a study is quiet for a few seconds.
+          </p>
+        </article>
+
+        <article class="card card-stats">
+          <header class="card-head">
+            <h2>Activity</h2>
+          </header>
+          <div class="stats">
+            <div class="stat">
+              <span class="stat-value" id="stat-recv">0</span>
+              <span class="stat-label">Received</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-fwd">0</span>
+              <span class="stat-label">Forwarded</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value stat-bad" id="stat-fail">0</span>
+              <span class="stat-label">Failures</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-flight">0</span>
+              <span class="stat-label">In flight</span>
+            </div>
           </div>
-          <div class="status-row">
-            <span class="label">Listening Port</span>
-            <span id="listen-port" class="value mono">—</span>
-            <span class="label label-right">Cache Dir</span>
-            <span id="cache-dir" class="value mono">—</span>
-          </div>
-        </div>
+        </article>
+      </section>
 
-        <button id="clear-log" class="btn-secondary">Clear Log</button>
-      </div>
+      <section class="card card-log">
+        <header class="card-head">
+          <h2>Live Log</h2>
+          <button id="clear-log" class="btn-pill btn-ghost">Clear Log</button>
+        </header>
+        <div id="log-area" class="log-area" role="log" aria-live="polite"></div>
+      </section>
 
-      <div class="dest-bar" id="dest-bar">
-        Destination: <span id="dest-summary" class="mono">—</span>
-      </div>
-
-      <div class="log-area" id="log-area" role="log" aria-live="polite"></div>
-
-      <div class="statusbar">
-        <span id="conn-state" class="conn-state">Connecting…</span>
-        <span class="spacer"></span>
-        <span>Received: <b id="stat-recv">0</b></span>
-        <span>Forwarded: <b id="stat-fwd">0</b></span>
-        <span>Failures: <b id="stat-fail">0</b></span>
-        <span>Studies in flight: <b id="stat-flight">0</b></span>
-      </div>
-    </div>
+      <footer class="page-foot">
+        <span>OmniPACS Router</span>
+        <span class="dot">•</span>
+        <span>v1.0.1</span>
+        <span class="dot">•</span>
+        <a href="https://www.omnipacs.com" target="_blank" rel="noopener">
+          omnipacs.com
+        </a>
+      </footer>
+    </main>
 
     <!-- Configuration modal ------------------------------------------- -->
     <div id="config-overlay" class="modal-overlay" hidden>
@@ -77,8 +159,9 @@
         </div>
         <form id="config-form" class="modal-body" novalidate>
           <p class="modal-hint">
-            Studies received on <span class="mono">OMNI@:7775</span> are
-            forwarded to this destination.
+            Studies received on
+            <span class="mono">OMNI@:7775</span> are forwarded to this
+            destination.
           </p>
 
           <label class="field">
@@ -134,15 +217,11 @@
           <p id="config-error" class="modal-error" hidden></p>
 
           <div class="modal-actions">
-            <button
-              type="button"
-              id="config-cancel"
-              class="btn-secondary"
-            >
+            <button type="button" id="config-cancel" class="btn-pill btn-ghost">
               Cancel
             </button>
-            <button type="submit" id="config-save" class="btn-primary">
-              Save
+            <button type="submit" id="config-save" class="btn-pill btn-primary">
+              Save Changes
             </button>
           </div>
         </form>
