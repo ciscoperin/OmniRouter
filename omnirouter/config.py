@@ -168,10 +168,11 @@ class DestinationStore:
 
             # Legacy migration: old files only had host/port/aet/use_tls.
             if "mode" not in data and "use_tls" in data:
-                data["mode"] = "dicom_tls" if data.pop("use_tls") else "dicom"
+                legacy_use_tls = data.pop("use_tls")
+                data["mode"] = "dicom_tls" if legacy_use_tls else "dicom"
                 log.info(
                     "Migrating legacy destination.json (use_tls=%s → mode=%s)",
-                    data.get("use_tls"),
+                    legacy_use_tls,
                     data["mode"],
                 )
 

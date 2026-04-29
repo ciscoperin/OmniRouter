@@ -160,7 +160,13 @@ class DicomWebForwarder(Forwarder):
     # large studies; aggressive enough that an unresponsive relay surfaces.
     REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=180.0, write=120.0, pool=10.0)
 
-    # We retry once on transient network / 5xx failures.
+    # Bounded per-batch retry: the entire STOW-RS POST is retried once on
+    # transient network errors or 5xx responses (so each study gets at most
+    # MAX_ATTEMPTS attempts total). This is *not* per-instance retry — the
+    # multipart body always contains every instance in the study. 4xx
+    # responses are surfaced immediately without retry; per-instance
+    # success/failure is then read from the PS3.18 response sequences
+    # (00081199 ReferencedSOPSequence / 00081198 FailedSOPSequence).
     MAX_ATTEMPTS = 2
 
     # Custom header to signal the OmniPACS Relay's delivery semantics.
