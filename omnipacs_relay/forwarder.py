@@ -116,18 +116,21 @@ class Forwarder:
         backoff = IDLE_INTERVAL_S
         while not self._stop.is_set():
             try:
-                processed = self._pass()
+                made_progress = self._pass()
             except Exception:
                 log.exception("Forwarder pass crashed; will retry")
-                processed = False
+                made_progress = False
 
-            if processed:
-                # Drain quickly when there's traffic.
+            if made_progress:
+                # We forwarded something this pass — drain quickly.
                 interval = IDLE_INTERVAL_S
                 backoff = IDLE_INTERVAL_S
             else:
-                # Nothing to do (or we couldn't connect); back off slowly.
-                backoff = min(backoff * 1.5, MAX_PASS_INTERVAL_S)
+                # Either the queue was empty OR every entry failed (the
+                # local PACS is unreachable / rejecting). Either way,
+                # back off exponentially so we don't burn through a
+                # MAX_ATTEMPTS budget in MAX_ATTEMPTS seconds.
+                backoff = min(backoff * 2, MAX_PASS_INTERVAL_S)
                 interval = backoff
             self._wake.clear()
             # Sleep but wake up early if kick()'d.
@@ -136,8 +139,11 @@ class Forwarder:
     def _pass(self) -> bool:
         """One worker pass — drains every spool entry through ONE association.
 
-        Returns True iff at least one entry was found this pass (regardless
-        of forward success), so the loop knows whether to back off.
+        Returns True iff at least one entry was successfully forwarded
+        this pass. The loop uses that signal to apply exponential
+        backoff when the local PACS is unhappy, so transient downstream
+        outages don't exhaust the per-instance retry budget within a
+        few seconds.
         """
         entries = list(spool.iter_pending())
         if not entries:
@@ -175,7 +181,10 @@ class Forwarder:
             prepared.append((entry, ds))
 
         if not prepared:
-            return True  # we did consume them (all failed) — keep loop tight
+            # Every entry failed to even parse — that's a hard error,
+            # not a transient condition. Don't keep the loop tight on
+            # nothing.
+            return False
 
         try:
             assoc = ae.associate(target.host, target.port, ae_title=target.aet)
@@ -186,14 +195,15 @@ class Forwarder:
             )
             for entry, _ds in prepared:
                 self._record_failure(entry, f"association error: {exc}")
-            return True
+            return False
 
         if not assoc.is_established:
             log.error("Association rejected by %s", target.describe())
             for entry, _ds in prepared:
                 self._record_failure(entry, "association rejected")
-            return True
+            return False
 
+        any_ok = False
         try:
             for entry, ds in prepared:
                 try:
@@ -201,6 +211,7 @@ class Forwarder:
                     code = getattr(status, "Status", 0xFFFF) if status else 0xFFFF
                     if code == 0x0000:
                         self._record_success(entry)
+                        any_ok = True
                     else:
                         self._record_failure(
                             entry, f"C-STORE status 0x{code:04X}"
@@ -213,7 +224,7 @@ class Forwarder:
             except Exception:
                 pass
 
-        return True
+        return any_ok
 
     # ---------------------------------------------------------------
     # Per-instance bookkeeping
