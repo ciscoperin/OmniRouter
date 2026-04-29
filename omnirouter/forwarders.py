@@ -160,14 +160,16 @@ class DicomWebForwarder(Forwarder):
     # large studies; aggressive enough that an unresponsive relay surfaces.
     REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=180.0, write=120.0, pool=10.0)
 
-    # Bounded per-batch retry: the entire STOW-RS POST is retried once on
-    # transient network errors or 5xx responses (so each study gets at most
-    # MAX_ATTEMPTS attempts total). This is *not* per-instance retry — the
-    # multipart body always contains every instance in the study. 4xx
-    # responses are surfaced immediately without retry; per-instance
-    # success/failure is then read from the PS3.18 response sequences
-    # (00081199 ReferencedSOPSequence / 00081198 FailedSOPSequence).
+    # Bounded transport retry: each POST is retried once on transient
+    # network errors or 5xx responses (each study gets at most
+    # MAX_ATTEMPTS attempts per POST). 4xx responses are never retried.
     MAX_ATTEMPTS = 2
+
+    # In addition to transport retry, we also do **bounded per-instance
+    # retry** in sync mode: after the first POST, any instances reported
+    # in the PS3.18 FailedSOPSequence (00081198) are re-sent once as a
+    # subset POST. So each individual SOP instance gets at most one retry.
+    PER_INSTANCE_RETRY = True
 
     # Custom header to signal the OmniPACS Relay's delivery semantics.
     DELIVERY_HEADER = "X-OmniPACS-Delivery"
@@ -184,7 +186,77 @@ class DicomWebForwarder(Forwarder):
         if not datasets:
             return result
 
-        url = f"{self.dest.base_url.rstrip('/')}/studies/{study_uid}"
+        url = _build_stow_url(self.dest.base_url, study_uid)
+
+        # First pass — send the full study.
+        forwarded, failed, failed_sop_uids, terminal_err = self._post_batch(
+            url, datasets
+        )
+
+        if terminal_err is not None:
+            # Transport / 4xx / 5xx exhausted — entire batch counted as failed.
+            result.succeeded_assoc = False
+            result.failed = len(datasets)
+            result.error_messages.append(terminal_err)
+            return result
+
+        result.forwarded = forwarded
+        result.failed = failed
+
+        # Per-instance retry — only meaningful in sync mode, where the
+        # server reports per-instance status. In async mode, the SCP has
+        # already taken ownership of the whole batch (202), so there's
+        # nothing to retry from our side.
+        if (
+            self.PER_INSTANCE_RETRY
+            and self.dest.delivery_mode == "sync"
+            and failed_sop_uids
+        ):
+            retry_subset = [
+                (p, ds)
+                for (p, ds) in datasets
+                if str(getattr(ds, "SOPInstanceUID", "")) in failed_sop_uids
+            ]
+            if retry_subset:
+                log.info(
+                    "STOW-RS per-instance retry: re-sending %d failed instance(s) "
+                    "for study %s",
+                    len(retry_subset),
+                    study_uid,
+                )
+                r_fwd, r_fail, _r_uids, r_err = self._post_batch(url, retry_subset)
+                if r_err is not None:
+                    # Retry POST itself blew up — the original failure count stands.
+                    log.warning(
+                        "STOW-RS per-instance retry POST failed: %s — "
+                        "leaving %d instance(s) marked failed",
+                        r_err,
+                        len(retry_subset),
+                    )
+                    result.error_messages.append(f"retry failed: {r_err}")
+                else:
+                    # Recompute counts: the retried instances were previously
+                    # in `failed`. After retry, r_fwd of them succeeded.
+                    result.forwarded += r_fwd
+                    result.failed = result.failed - r_fwd
+                    if result.failed < 0:
+                        # Defensive — should not happen if server is consistent.
+                        result.failed = 0
+
+        return result
+
+    def _post_batch(
+        self,
+        url: str,
+        datasets: list[tuple[Path, Dataset]],
+    ) -> tuple[int, int, set[str], str | None]:
+        """Execute one STOW-RS POST with transport-level retry.
+
+        Returns ``(forwarded, failed, failed_sop_uids, terminal_error)``.
+        ``terminal_error`` is non-None only when transport/HTTP failed
+        permanently — in that case the caller treats the whole batch as
+        failed and skips per-instance retry.
+        """
         boundary = f"omnirouter-{uuid.uuid4().hex}"
         body = _build_multipart_body(datasets, boundary)
         headers = {
@@ -220,27 +292,26 @@ class DicomWebForwarder(Forwarder):
                 if attempt < self.MAX_ATTEMPTS:
                     time.sleep(min(2.0 * attempt, 5.0))
                     continue
-                result.succeeded_assoc = False
-                result.failed = len(datasets)
-                result.error_messages.append(last_error)
-                return result
+                return 0, len(datasets), set(), last_error
 
             elapsed = time.monotonic() - t0
 
-            # 2xx success
+            # 2xx success — parse per-instance status.
             if 200 <= resp.status_code < 300:
-                forwarded, failed = _parse_stow_response(resp, len(datasets))
-                result.forwarded = forwarded
-                result.failed = failed
+                forwarded, failed, failed_uids = _parse_stow_response(
+                    resp, len(datasets), self.dest.delivery_mode
+                )
                 log.info(
-                    "STOW-RS POST %s → HTTP %d in %.2fs (forwarded=%d, failed=%d)",
+                    "STOW-RS POST %s → HTTP %d in %.2fs "
+                    "(forwarded=%d, failed=%d, mode=%s)",
                     _safe_url_for_log(url),
                     resp.status_code,
                     elapsed,
                     forwarded,
                     failed,
+                    self.dest.delivery_mode,
                 )
-                return result
+                return forwarded, failed, failed_uids, None
 
             # 4xx — auth / bad request — don't retry, surface clearly.
             if 400 <= resp.status_code < 500:
@@ -251,12 +322,9 @@ class DicomWebForwarder(Forwarder):
                     elapsed,
                     msg,
                 )
-                result.succeeded_assoc = False
-                result.failed = len(datasets)
-                result.error_messages.append(msg)
-                return result
+                return 0, len(datasets), set(), msg
 
-            # 5xx — retry once
+            # 5xx — retry once.
             last_error = f"HTTP {resp.status_code}: {_safe_resp_body(resp)}"
             log.warning(
                 "STOW-RS POST %s → HTTP %d after %.2fs (attempt %d/%d): %s",
@@ -270,16 +338,10 @@ class DicomWebForwarder(Forwarder):
             if attempt < self.MAX_ATTEMPTS:
                 time.sleep(min(2.0 * attempt, 5.0))
                 continue
-
-            result.succeeded_assoc = False
-            result.failed = len(datasets)
-            result.error_messages.append(last_error or "STOW-RS POST failed")
-            return result
+            return 0, len(datasets), set(), last_error or "STOW-RS POST failed"
 
         # Should not reach here.
-        result.failed = len(datasets)
-        result.succeeded_assoc = False
-        return result
+        return 0, len(datasets), set(), last_error or "STOW-RS POST failed"
 
 
 def _build_multipart_body(
@@ -305,28 +367,70 @@ def _build_multipart_body(
     return buf.getvalue()
 
 
+def _build_stow_url(base_url: str, study_uid: str) -> str:
+    """Build the STOW-RS POST target URL for a given study.
+
+    PS3.18 allows two endpoint shapes for STOW:
+    - ``/studies``                          (server picks/uses StudyInstanceUID from the dataset)
+    - ``/studies/{StudyInstanceUID}``       (study-specific endpoint)
+
+    Different stock deployments expose different roots in their config:
+    - Orthanc DICOMweb plugin uses ``/dicom-web``
+    - dcm4chee uses ``/dcm4chee-arc/aets/<AET>/rs``
+    - the OmniPACS Relay (Task #2) uses ``/`` as its base
+
+    To accommodate this, we let the operator paste either the server root
+    (``https://relay/``, ``https://orthanc/dicom-web``) or the studies
+    endpoint directly (``https://relay/studies``). If the base URL already
+    ends with ``/studies`` (case-insensitive), we just append the study
+    UID; otherwise we append ``/studies/<uid>``. Trailing slashes are
+    tolerated either way.
+    """
+    base = base_url.rstrip("/")
+    if base.lower().endswith("/studies"):
+        return f"{base}/{study_uid}"
+    return f"{base}/studies/{study_uid}"
+
+
 def _parse_stow_response(
     resp: httpx.Response,
     expected_count: int,
-) -> tuple[int, int]:
-    """Return (forwarded, failed) from a STOW-RS response.
+    delivery_mode: str = "sync",
+) -> tuple[int, int, set[str]]:
+    """Return (forwarded, failed, failed_sop_uids) from a STOW-RS response.
 
-    For DICOM PS3.18 sync (200) responses, the body must be DICOM JSON
-    with ``00081199`` (ReferencedSOPSequence, successes) and/or
-    ``00081198`` (FailedSOPSequence, failures). We parse those literally
-    — anything we can't parse is conservatively counted as **failed** so
-    a malformed/non-conforming server doesn't silently look like success.
+    Sync vs async semantics:
+      - In **async** mode (``X-OmniPACS-Delivery: async``), a ``202`` means
+        the SCP has taken ownership of the whole batch — count all as
+        forwarded.
+      - In **sync** mode, a ``202`` is unexpected — the server isn't
+        reporting per-instance status the way we asked. We log a warning
+        and count the batch as failed so it surfaces on the dashboard.
 
-    For 202 (async accept) we count the whole batch as forwarded — the
-    SCP has accepted responsibility for delivery.
+    For 200-class responses (sync), the body must be DICOM JSON with
+    ``00081199`` (ReferencedSOPSequence, successes) and/or ``00081198``
+    (FailedSOPSequence, failures). The third element of the tuple is the
+    set of ``SOPInstanceUID`` strings that failed — used by the caller to
+    drive bounded per-instance retry. Anything we can't parse is
+    conservatively counted as **failed** with an empty retry set (so a
+    malformed/non-conforming server doesn't silently look like success
+    *and* doesn't trigger a useless full-batch retry).
     """
     content_type = resp.headers.get("content-type", "").lower()
 
     if resp.status_code == 202:
-        # Asynchronous accept — server took ownership of all instances.
-        return expected_count, 0
+        if delivery_mode == "async":
+            # Async accept — server took ownership of all instances.
+            return expected_count, 0, set()
+        # 202 in sync mode is a delivery-semantics mismatch.
+        log.warning(
+            "STOW-RS sync request got HTTP 202 (async accept) — server is "
+            "not honoring sync delivery; counting %d instance(s) as failed",
+            expected_count,
+        )
+        return 0, expected_count, set()
 
-    # Sync (200-class). Per PS3.18 the response is DICOM JSON.
+    # 2xx with body. Per PS3.18 the response is DICOM JSON.
     if "json" not in content_type:
         log.warning(
             "STOW-RS sync response has non-JSON Content-Type %r; "
@@ -334,7 +438,7 @@ def _parse_stow_response(
             content_type or "<missing>",
             expected_count,
         )
-        return 0, expected_count
+        return 0, expected_count, set()
 
     try:
         body = resp.json()
@@ -344,7 +448,7 @@ def _parse_stow_response(
             "counting %d instance(s) as failed",
             expected_count,
         )
-        return 0, expected_count
+        return 0, expected_count, set()
 
     if isinstance(body, list):
         body = body[0] if body else {}
@@ -355,7 +459,7 @@ def _parse_stow_response(
             type(body).__name__,
             expected_count,
         )
-        return 0, expected_count
+        return 0, expected_count, set()
 
     succeeded = body.get("00081199", {}).get("Value", []) or []
     failed = body.get("00081198", {}).get("Value", []) or []
@@ -371,8 +475,26 @@ def _parse_stow_response(
             "or FailedSOPSequence (00081198) — counting %d instance(s) as failed",
             expected_count,
         )
-        return 0, expected_count
-    return s_count, f_count
+        return 0, expected_count, set()
+
+    # Extract SOPInstanceUIDs of failed instances for bounded per-instance
+    # retry. Each FailedSOPSequence item carries 00081155
+    # (ReferencedSOPInstanceUID) per PS3.18.
+    failed_uids: set[str] = set()
+    if isinstance(failed, list):
+        for item in failed:
+            if not isinstance(item, dict):
+                continue
+            uid_field = item.get("00081155", {})
+            if not isinstance(uid_field, dict):
+                continue
+            uid_values = uid_field.get("Value") or []
+            if isinstance(uid_values, list) and uid_values:
+                uid = uid_values[0]
+                if isinstance(uid, str) and uid:
+                    failed_uids.add(uid)
+
+    return s_count, f_count, failed_uids
 
 
 def _safe_url_for_log(url: str) -> str:
