@@ -40,6 +40,7 @@ WORKDIR /app
 COPY pyproject.toml ./pyproject.toml
 RUN pip install --upgrade pip \
  && pip install \
+        "cryptography>=42.0.0" \
         "fastapi>=0.136.1" \
         "httpx>=0.28.1" \
         "pydicom>=3.0.2" \

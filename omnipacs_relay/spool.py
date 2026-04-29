@@ -170,6 +170,22 @@ class Spool:
         with self._lock:
             self._stats["failed"] += 1
 
+    def discard_pending(self, entry: SpoolEntry) -> None:
+        """Drop a pending instance from the inbox without quarantining.
+
+        Used by sync STOW mode after a fail-fast failure: the caller
+        (OmniRouter) will retry the request itself, so we mustn't keep
+        retrying asynchronously and create duplicate deliveries.
+        """
+        try:
+            entry.path.unlink(missing_ok=True)
+            try:
+                entry.path.parent.rmdir()
+            except OSError:
+                pass
+        except OSError:
+            log.exception("Failed to discard spool file %s", entry.path)
+
     def quarantine(self, entry: SpoolEntry, reason: str) -> Path:
         """Move an instance from inbox/ to quarantine/ and record reason."""
         safe_study = _safe_uid(entry.study_uid)

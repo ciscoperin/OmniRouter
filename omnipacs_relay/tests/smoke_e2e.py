@@ -308,6 +308,47 @@ def scenario_async(token: str, scp: TestSCP) -> bool:
     return True
 
 
+def scenario_sync_failfast(token: str) -> bool:
+    """With the local PACS unreachable, sync STOW must fail fast (well
+    under SYNC_PER_INSTANCE_TIMEOUT_S=60s) rather than waiting for the
+    forwarder to exhaust its retry budget."""
+    log("\n=== Scenario 5: sync fail-fast when local PACS is unreachable ===")
+    # Park the local target on a definitely-closed port.
+    closed_port = pick_free_port()
+    configure_local_target("127.0.0.1", closed_port, "NOWHERE", delivery="sync")
+
+    ds = make_dicom_instance()
+    body, ct = build_multipart([encode_dicom(ds)])
+    t0 = time.time()
+    r = httpx.post(
+        f"{RELAY_BASE}/studies",
+        content=body,
+        headers={
+            "Content-Type": ct,
+            "Accept": "application/dicom+json",
+            "Authorization": f"Bearer {token}",
+            "X-OmniPACS-Delivery": "sync",
+        },
+        timeout=20,
+        verify=HTTP_VERIFY,
+    )
+    elapsed = time.time() - t0
+    log(f"[sync-failfast] HTTP {r.status_code} in {elapsed:.2f}s")
+    if r.status_code != 200:
+        log(f"[FAIL] expected 200 with failure body, got {r.status_code}")
+        return False
+    if elapsed > 10:
+        log(f"[FAIL] sync mode took {elapsed:.1f}s — should fail fast")
+        return False
+    payload = r.json()
+    failures = payload.get("00081198", {}).get("Value", [])
+    if not failures:
+        log(f"[FAIL] expected 00081198 failures, got {payload}")
+        return False
+    log(f"[PASS] sync failed fast in {elapsed:.2f}s with PS3.18 failure body")
+    return True
+
+
 def scenario_token_last_used(token: str, label: str) -> bool:
     log("\n=== Scenario 4: per-token last-used tracking ===")
     r = httpx.get(f"{RELAY_BASE}/api/tokens", timeout=5, verify=HTTP_VERIFY)
@@ -350,7 +391,13 @@ def main() -> int:
         results.append(("auth-401", scenario_auth_required()))
         results.append(("sync-stow", scenario_sync(token, scp)))
         results.append(("async-stow", scenario_async(token, scp)))
+        # Sync fail-fast moves the local target to a closed port — do
+        # the last-used scenario before it (so it has a "good" history)
+        # and reset the target after.
         results.append(("last-used", scenario_token_last_used(token, label)))
+        results.append(("sync-failfast", scenario_sync_failfast(token)))
+        configure_local_target("127.0.0.1", target_port, "TEST_PACS",
+                               delivery="sync")
     finally:
         if token is not None:
             try:

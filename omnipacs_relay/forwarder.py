@@ -232,11 +232,24 @@ class Forwarder:
         with self._lock:
             n = self._attempts.get(key, 0) + 1
             self._attempts[key] = n
+            # If a sync STOW caller is blocked waiting on this SOP, signal
+            # them on the FIRST failure rather than letting them stall
+            # through MAX_ATTEMPTS. The caller (OmniRouter) will retry the
+            # whole request itself, so we also drop the entry from the
+            # spool below to avoid double-delivery.
+            sync_waiter = self._waiters.pop(entry.sop_uid, None) if n == 1 else None
         spool.mark_failed()
         log.warning(
             "Forward failed (attempt %d/%d) study=%s sop=%s reason=%s",
             n, MAX_ATTEMPTS, entry.study_uid, entry.sop_uid, reason,
         )
+        if sync_waiter is not None:
+            # Drop the entry — sync caller owns the retry from here.
+            with self._lock:
+                self._attempts.pop(key, None)
+            spool.discard_pending(entry)
+            sync_waiter.set_failure(reason)
+            return
         if n >= MAX_ATTEMPTS:
             spool.quarantine(entry, reason)
             with self._lock:
