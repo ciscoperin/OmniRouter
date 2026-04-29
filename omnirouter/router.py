@@ -95,7 +95,7 @@ class OmniRouter:
         ]
 
         log.info(
-            "Omnirouter version 1.0.0 initializing (cache=%s)", CACHE_DIR
+            "Omnirouter version 1.0.2 initializing (cache=%s)", CACHE_DIR
         )
 
         self._scp = self.ae.start_server(
