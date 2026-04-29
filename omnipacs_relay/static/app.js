@@ -19,6 +19,7 @@ const els = {
   statQuar: document.getElementById("stat-quar"),
   statTokens: document.getElementById("stat-tokens"),
   statLastForward: document.getElementById("stat-last-forward"),
+  statUptime: document.getElementById("stat-uptime"),
   // Local Target modal
   menuTarget: document.getElementById("menu-target"),
   openTargetBtn: document.getElementById("open-target"),
@@ -115,6 +116,21 @@ function formatTs(ts) {
   }
 }
 
+function formatUptime(seconds) {
+  if (seconds == null || isNaN(seconds)) return "—";
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  if (s < 86400) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return `${h}h ${m}m`;
+  }
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  return `${d}d ${h}h`;
+}
+
 function formatLastForward(ts) {
   if (!ts) return "never";
   try {
@@ -149,6 +165,7 @@ async function fetchStatus() {
     els.statQuar.textContent = s.spool.quarantined;
     els.statTokens.textContent = s.token_count;
     els.statLastForward.textContent = formatLastForward(s.spool.last_forward_ts);
+    els.statUptime.textContent = formatUptime(s.uptime_seconds);
     setRunning(s.forwarder_running);
   } catch (e) {
     /* ws handles connectivity */

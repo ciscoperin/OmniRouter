@@ -107,6 +107,9 @@ class TokenStore:
 
     def _save_to_disk(self) -> None:
         try:
+            # When OMNI_RELAY_TOKEN_FILE points outside SPOOL_DIR we need
+            # to make sure that target's parent exists too.
+            self._path.parent.mkdir(parents=True, exist_ok=True)
             SPOOL_DIR.mkdir(parents=True, exist_ok=True)
             payload = {
                 "tokens": [

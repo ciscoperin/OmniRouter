@@ -321,6 +321,9 @@ def _local_target_payload() -> dict:
     }
 
 
+_PROCESS_STARTED_TS = time.time()
+
+
 @app.get("/api/status")
 async def admin_status() -> JSONResponse:
     return JSONResponse(
@@ -335,6 +338,8 @@ async def admin_status() -> JSONResponse:
             "forwarder_running": forwarder.is_running(),
             "token_count": token_store.count(),
             "spool": spool.stats(),
+            "started_ts": _PROCESS_STARTED_TS,
+            "uptime_seconds": time.time() - _PROCESS_STARTED_TS,
         }
     )
 

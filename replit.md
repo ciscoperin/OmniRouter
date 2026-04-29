@@ -56,7 +56,7 @@ Located at `omnipacs_relay/` — peer Python package to `omnirouter/`, not a JS 
 - Background forwarder thread drains spool and re-emits as DICOM C-STORE to a runtime-editable local PACS target persisted to `omnirelay_spool/local_target.json` (chmod 600).
 - Bearer tokens persisted to `omnirelay_spool/tokens.json` (chmod 600). Tokens are 32-byte URL-safe random strings, validated in constant time, last-used tracked. Issue/revoke from the dashboard; new token shown exactly once. Bootstrap via `OMNI_RELAY_TOKENS` env (comma-separated).
 - FastAPI dashboard at `/` with WebSocket live log streaming, OmniPACS-branded (#1E0325 / #9A1DBD, Outfit/Open Sans). Admin JSON API at `/api/*`; unauthenticated `/healthz` for load-balancer probes.
-- Optional inbound TLS via `OMNI_RELAY_TLS_CERT` / `OMNI_RELAY_TLS_KEY`; otherwise plain HTTP behind a reverse proxy (Replit dev preview adds TLS automatically).
+- HTTPS by default: when `OMNI_RELAY_TLS_CERT` / `OMNI_RELAY_TLS_KEY` are set, those operator-supplied creds are used; otherwise the relay auto-generates and reuses a self-signed cert under `<spool>/tls/` on first boot. Operators behind a TLS-terminating proxy can opt out with `OMNI_RELAY_DISABLE_TLS=1`.
 - Operator deliverables: `omnipacs_relay/Dockerfile`, `omnipacs_relay/omnipacs-relay.service` (systemd unit), `omnipacs_relay/README.md`.
 - Smoke test (run from repo root): `python -m omnipacs_relay.tests.smoke_e2e` — covers auth-401, sync STOW, async STOW, last-used tracking against an in-process pynetdicom storage SCP.
 - Run locally: `PORT=8000 python -m omnipacs_relay.main`. Spool directory `omnirelay_spool/` is gitignored (contains PHI + tokens).
