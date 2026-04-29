@@ -20,6 +20,10 @@ author = "agent"
 task = "workflow.run"
 args = "OmniRouter"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "OmniPACSRelay"
+
 [[workflows.workflow]]
 name = "OmniRouter"
 author = "agent"
@@ -31,6 +35,18 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "OmniPACSRelay"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8000 python -m omnipacs_relay.main"
+waitForPort = 8000
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -51,6 +67,10 @@ externalPort = 3002
 [[ports]]
 localPort = 7776
 externalPort = 3000
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
 
 [[ports]]
 localPort = 8080

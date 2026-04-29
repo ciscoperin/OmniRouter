@@ -1,0 +1,54 @@
+# OmniPACS Relay — systemd unit
+#
+# Install:
+#   sudo useradd -r -s /usr/sbin/nologin omnirelay
+#   sudo mkdir -p /opt/omnirelay /var/lib/omnirelay/spool /etc/omnirelay
+#   sudo chown -R omnirelay:omnirelay /opt/omnirelay /var/lib/omnirelay
+#   sudo chmod 700 /var/lib/omnirelay/spool
+#   # ... copy the project tree to /opt/omnirelay and create a venv:
+#   sudo -u omnirelay python3 -m venv /opt/omnirelay/.venv
+#   sudo -u omnirelay /opt/omnirelay/.venv/bin/pip install \
+#       fastapi httpx pydicom pynetdicom 'uvicorn[standard]'
+#   sudo cp omnipacs_relay/omnipacs-relay.service \
+#       /etc/systemd/system/omnipacs-relay.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now omnipacs-relay
+#
+# The /etc/omnirelay/omnirelay.env file holds operator-supplied
+# configuration: the local PACS target, optional bootstrap tokens, and
+# any inbound TLS cert paths. See README.md for the full env reference.
+
+[Unit]
+Description=OmniPACS Relay — STOW-RS receiving service
+Documentation=https://www.omnipacs.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=omnirelay
+Group=omnirelay
+WorkingDirectory=/opt/omnirelay
+EnvironmentFile=-/etc/omnirelay/omnirelay.env
+Environment=PORT=8443
+Environment=OMNI_RELAY_SPOOL=/var/lib/omnirelay/spool
+ExecStart=/opt/omnirelay/.venv/bin/python -m omnipacs_relay.main
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+LimitNOFILE=65536
+
+# Hardening — adjust to taste for your distribution.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/omnirelay
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

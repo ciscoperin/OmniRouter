@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OmniPACS Relay</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/relay.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <img
+            src="/static/omnipacs-logo.png"
+            alt="OmniPACS"
+            class="brand-logo"
+          />
+          <span class="brand-divider"></span>
+          <span class="brand-product">Relay Service</span>
+        </a>
+        <nav class="topbar-actions">
+          <span id="conn-state" class="conn-pill is-up">
+            <span class="conn-dot"></span>
+            <span class="conn-label">Connected</span>
+          </span>
+          <button id="menu-target" class="btn-config">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Local Target
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="hero">
+        <p class="hero-eyebrow">Smarter . Faster . Secure</p>
+        <h1 class="hero-title">DICOM Relay Service</h1>
+        <p class="hero-subtitle">
+          Receives STOW-RS over HTTPS from any number of remote OmniRouter
+          installations, durably spools each instance to disk, and re-emits
+          to the configured local PACS as DICOM C-STORE.
+        </p>
+      </section>
+
+      <section class="grid">
+        <article class="card card-listener">
+          <header class="card-head">
+            <h2>Inbound Endpoint</h2>
+            <button id="toggle-forwarder" class="btn-pill btn-stop">Stop</button>
+          </header>
+          <dl class="kv">
+            <div>
+              <dt>Public Host</dt>
+              <dd id="public-host" class="mono">—</dd>
+            </div>
+            <div>
+              <dt>Port</dt>
+              <dd id="public-port" class="mono">—</dd>
+            </div>
+            <div>
+              <dt>STOW-RS Endpoint</dt>
+              <dd id="stow-endpoint" class="mono">—</dd>
+            </div>
+            <div>
+              <dt>Spool</dt>
+              <dd id="spool-path" class="mono">—</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="card card-destination">
+          <header class="card-head">
+            <h2>Local Target</h2>
+            <button id="open-target" class="btn-link">Edit</button>
+          </header>
+          <p id="target-summary" class="dest-summary">—</p>
+          <p class="card-foot">
+            Each spooled instance is forwarded once to this PACS over DICOM
+            C-STORE.
+          </p>
+        </article>
+
+        <article class="card card-stats">
+          <header class="card-head">
+            <h2>Activity</h2>
+          </header>
+          <div class="stats stats-six">
+            <div class="stat">
+              <span class="stat-value" id="stat-recv">0</span>
+              <span class="stat-label">Received</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-fwd">0</span>
+              <span class="stat-label">Forwarded</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value stat-bad" id="stat-fail">0</span>
+              <span class="stat-label">Failures</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-queue">0</span>
+              <span class="stat-label">Queue depth</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value stat-bad" id="stat-quar">0</span>
+              <span class="stat-label">Quarantined</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-tokens">0</span>
+              <span class="stat-label">Active tokens</span>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card card-tokens">
+          <header class="card-head">
+            <h2>Bearer Tokens</h2>
+            <button id="open-issue-token" class="btn-pill btn-primary">
+              Issue New
+            </button>
+          </header>
+          <table class="data-table" id="token-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Created</th>
+                <th>Last used</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="token-rows">
+              <tr class="empty"><td colspan="4">No tokens issued yet.</td></tr>
+            </tbody>
+          </table>
+          <p class="card-foot">
+            Remote OmniRouter installs authenticate using one of these tokens
+            via the <span class="mono">Authorization: Bearer …</span> header.
+          </p>
+        </article>
+
+        <article class="card card-quarantine">
+          <header class="card-head">
+            <h2>Quarantine</h2>
+            <button id="requeue-all" class="btn-pill btn-ghost">
+              Requeue All
+            </button>
+          </header>
+          <table class="data-table" id="quarantine-table">
+            <thead>
+              <tr>
+                <th>Study UID</th>
+                <th>SOP UID</th>
+                <th>Last error</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="quar-rows">
+              <tr class="empty"><td colspan="4">Nothing quarantined.</td></tr>
+            </tbody>
+          </table>
+          <p class="card-foot">
+            Instances that exceeded the retry budget. Resolve the local PACS
+            issue, then requeue.
+          </p>
+        </article>
+      </section>
+
+      <section class="card card-log">
+        <header class="card-head">
+          <h2>Live Log</h2>
+          <button id="clear-log" class="btn-pill btn-ghost">Clear Log</button>
+        </header>
+        <div id="log-area" class="log-area" role="log" aria-live="polite"></div>
+      </section>
+
+      <footer class="page-foot">
+        <span>OmniPACS Relay</span>
+        <span class="dot">•</span>
+        <span>v1.0.0</span>
+        <span class="dot">•</span>
+        <a href="https://www.omnipacs.com" target="_blank" rel="noopener">
+          omnipacs.com
+        </a>
+      </footer>
+    </main>
+
+    <!-- Local Target modal -->
+    <div id="target-overlay" class="modal-overlay" hidden>
+      <div class="modal modal-wide" role="dialog" aria-labelledby="target-title">
+        <div class="modal-header">
+          <h2 id="target-title">Local PACS Target</h2>
+          <button id="target-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+        <form id="target-form" class="modal-body" novalidate>
+          <p class="modal-hint">
+            Each accepted study is forwarded as DICOM C-STORE to this target.
+          </p>
+          <label class="field">
+            <span>Target Host / IP</span>
+            <input type="text" id="target-host" name="host" maxlength="255"
+                   placeholder="pacs.example.org" />
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span>Port</span>
+              <input type="number" id="target-port" name="port" min="1"
+                     max="65535" placeholder="11112" />
+            </label>
+            <label class="field">
+              <span>AE Title</span>
+              <input type="text" id="target-aet" name="aet" maxlength="16"
+                     placeholder="LOCAL_PACS" />
+            </label>
+          </div>
+          <label class="field">
+            <span>Default Delivery Mode</span>
+            <select id="target-delivery" name="default_delivery_mode">
+              <option value="sync">Synchronous (wait for end-to-end ACK)</option>
+              <option value="async">Asynchronous (fire-and-forget)</option>
+            </select>
+            <small class="field-help">
+              Used when an inbound STOW request omits the
+              <span class="mono">X-OmniPACS-Delivery</span> header.
+            </small>
+          </label>
+          <p id="target-error" class="modal-error" hidden></p>
+          <div class="modal-actions">
+            <button type="button" id="target-cancel" class="btn-pill btn-ghost">Cancel</button>
+            <button type="submit" id="target-save" class="btn-pill btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Issue Token modal -->
+    <div id="issue-overlay" class="modal-overlay" hidden>
+      <div class="modal" role="dialog" aria-labelledby="issue-title">
+        <div class="modal-header">
+          <h2 id="issue-title">Issue New Bearer Token</h2>
+          <button id="issue-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+        <form id="issue-form" class="modal-body" novalidate>
+          <p class="modal-hint">
+            Choose a short label so you can identify this token in the
+            dashboard later. The token itself is generated server-side and
+            shown <strong>once</strong> on creation.
+          </p>
+          <label class="field">
+            <span>Label</span>
+            <input type="text" id="issue-label" name="label" maxlength="32"
+                   placeholder="e.g. clinic-portland" />
+            <small class="field-help">
+              Letters, digits, <span class="mono">.-_</span> only.
+              Leave blank for an auto-generated label.
+            </small>
+          </label>
+          <p id="issue-error" class="modal-error" hidden></p>
+          <div id="issue-result" hidden>
+            <p class="issue-warn">
+              <strong>Copy this token now.</strong> It will not be shown again.
+            </p>
+            <div class="token-display">
+              <code id="issue-token" class="mono"></code>
+              <button type="button" id="issue-copy" class="btn-pill btn-ghost">
+                Copy
+              </button>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="issue-cancel" class="btn-pill btn-ghost">Close</button>
+            <button type="submit" id="issue-save" class="btn-pill btn-primary">
+              Generate Token
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

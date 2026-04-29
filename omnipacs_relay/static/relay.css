@@ -1,0 +1,111 @@
+/* OmniPACS Relay — additions on top of the shared OmniPACS palette ----- */
+
+.stats.stats-six {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 720px) {
+  .stats.stats-six {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Data tables (tokens, quarantine) ------------------------------------- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.data-table thead th {
+  text-align: left;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-soft);
+  font-weight: 600;
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  word-break: break-all;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr.empty td {
+  color: var(--text-soft);
+  text-align: center;
+  font-style: italic;
+}
+
+.data-table .col-actions {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
+
+.btn-revoke {
+  background: transparent;
+  border: 1px solid var(--bad);
+  color: var(--bad);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-revoke:hover {
+  background: var(--bad-bg);
+}
+
+.btn-requeue {
+  background: transparent;
+  border: 1px solid var(--brand-accent);
+  color: var(--brand-accent);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-requeue:hover {
+  background: var(--bg-2);
+}
+
+/* Issued-token reveal -------------------------------------------------- */
+.issue-warn {
+  margin: 18px 0 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: #fff3e0;
+  color: #8a4500;
+  font-size: 13px;
+  border: 1px solid #ffd9a6;
+}
+
+.token-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--brand-ink);
+  color: #e9e3ec;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+
+.token-display code {
+  flex: 1;
+  font-size: 12.5px;
+  user-select: all;
+}

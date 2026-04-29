@@ -51,3 +51,8 @@ Thumbs.db
 # OmniRouter runtime cache: holds received DICOM PHI, the persisted
 # destination secret (bearer token), and self-signed TLS keys. Never commit.
 omnicache/
+
+# OmniPACS Relay spool: holds received DICOM PHI, persisted bearer
+# tokens (chmod 600), and the local target config. Never commit.
+omnirelay_spool/
+
