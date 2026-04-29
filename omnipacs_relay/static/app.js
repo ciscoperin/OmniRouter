@@ -18,6 +18,7 @@ const els = {
   statQueue: document.getElementById("stat-queue"),
   statQuar: document.getElementById("stat-quar"),
   statTokens: document.getElementById("stat-tokens"),
+  statLastForward: document.getElementById("stat-last-forward"),
   // Local Target modal
   menuTarget: document.getElementById("menu-target"),
   openTargetBtn: document.getElementById("open-target"),
@@ -114,6 +115,22 @@ function formatTs(ts) {
   }
 }
 
+function formatLastForward(ts) {
+  if (!ts) return "never";
+  try {
+    const d = new Date(ts * 1000);
+    const ageSec = Math.max(0, (Date.now() - d.getTime()) / 1000);
+    let ageLabel;
+    if (ageSec < 60) ageLabel = `${Math.floor(ageSec)}s ago`;
+    else if (ageSec < 3600) ageLabel = `${Math.floor(ageSec / 60)}m ago`;
+    else if (ageSec < 86400) ageLabel = `${Math.floor(ageSec / 3600)}h ago`;
+    else ageLabel = `${Math.floor(ageSec / 86400)}d ago`;
+    return `${d.toLocaleString()} (${ageLabel})`;
+  } catch (e) {
+    return "never";
+  }
+}
+
 // --- Status polling ---------------------------------------------------------
 async function fetchStatus() {
   try {
@@ -131,6 +148,7 @@ async function fetchStatus() {
     els.statQueue.textContent = s.spool.queue_depth;
     els.statQuar.textContent = s.spool.quarantined;
     els.statTokens.textContent = s.token_count;
+    els.statLastForward.textContent = formatLastForward(s.spool.last_forward_ts);
     setRunning(s.forwarder_running);
   } catch (e) {
     /* ws handles connectivity */

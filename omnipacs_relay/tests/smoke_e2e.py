@@ -22,14 +22,20 @@ Run from the repo root once the OmniPACSRelay workflow is up:
 from __future__ import annotations
 
 import io
+import os
 import socket
 import sys
 import threading
 import time
 import uuid
+import warnings
 from typing import Iterable
 
 import httpx
+
+# urllib3 / httpx warn loudly about verify=False; for a smoke test that's
+# pointing at the relay's deliberately self-signed dev cert, hush them.
+warnings.filterwarnings("ignore", message=".*Unverified HTTPS request.*")
 from pydicom import dcmwrite
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.uid import (
@@ -41,7 +47,8 @@ from pynetdicom import AE, evt
 from pynetdicom.sop_class import SecondaryCaptureImageStorage as SCStorageSOP
 from pynetdicom.sop_class import Verification
 
-RELAY_BASE = "http://127.0.0.1:8000"
+RELAY_BASE = os.environ.get("RELAY_BASE", "https://127.0.0.1:8000")
+HTTP_VERIFY = False  # we accept the relay's self-signed dev cert
 
 
 # ---------------------------------------------------------------------------
@@ -153,10 +160,11 @@ def log(msg: str) -> None:
 # Relay control-plane helpers
 # ---------------------------------------------------------------------------
 def wait_for_relay() -> None:
-    deadline = time.time() + 10
+    deadline = time.time() + 15
     while time.time() < deadline:
         try:
-            r = httpx.get(f"{RELAY_BASE}/healthz", timeout=2)
+            r = httpx.get(f"{RELAY_BASE}/healthz", timeout=2,
+                          verify=HTTP_VERIFY)
             if r.status_code == 200:
                 return
         except Exception:
@@ -171,13 +179,15 @@ def issue_token(label: str) -> str:
         f"{RELAY_BASE}/api/tokens",
         json={"label": label},
         timeout=10,
+        verify=HTTP_VERIFY,
     )
     r.raise_for_status()
     return r.json()["token"]
 
 
 def revoke_token(label: str) -> None:
-    httpx.delete(f"{RELAY_BASE}/api/tokens/{label}", timeout=10)
+    httpx.delete(f"{RELAY_BASE}/api/tokens/{label}", timeout=10,
+                 verify=HTTP_VERIFY)
 
 
 def configure_local_target(host: str, port: int, aet: str,
@@ -188,6 +198,7 @@ def configure_local_target(host: str, port: int, aet: str,
         json={"host": host, "port": port, "aet": aet,
               "default_delivery_mode": delivery},
         timeout=10,
+        verify=HTTP_VERIFY,
     )
     r.raise_for_status()
 
@@ -203,6 +214,7 @@ def scenario_auth_required() -> bool:
         content=body,
         headers={"Content-Type": ct, "Accept": "application/dicom+json"},
         timeout=10,
+        verify=HTTP_VERIFY,
     )
     if r.status_code != 401:
         log(f"[FAIL] expected 401, got {r.status_code}")
@@ -233,6 +245,7 @@ def scenario_sync(token: str, scp: TestSCP) -> bool:
             "X-OmniPACS-Delivery": "sync",
         },
         timeout=60,
+        verify=HTTP_VERIFY,
     )
     elapsed = time.time() - t0
     log(f"[sync] HTTP {r.status_code} in {elapsed:.2f}s")
@@ -273,6 +286,7 @@ def scenario_async(token: str, scp: TestSCP) -> bool:
             "X-OmniPACS-Delivery": "async",
         },
         timeout=10,
+        verify=HTTP_VERIFY,
     )
     elapsed = time.time() - t0
     log(f"[async] HTTP {r.status_code} in {elapsed:.2f}s")
@@ -296,7 +310,7 @@ def scenario_async(token: str, scp: TestSCP) -> bool:
 
 def scenario_token_last_used(token: str, label: str) -> bool:
     log("\n=== Scenario 4: per-token last-used tracking ===")
-    r = httpx.get(f"{RELAY_BASE}/api/tokens", timeout=5)
+    r = httpx.get(f"{RELAY_BASE}/api/tokens", timeout=5, verify=HTTP_VERIFY)
     r.raise_for_status()
     tokens = r.json()["tokens"]
     rec = next((t for t in tokens if t["label"] == label), None)

@@ -104,13 +104,22 @@ single-machine install.
 | `OMNI_RELAY_TARGET_AET` | `LOCAL_PACS` | Local PACS AE Title |
 | `OMNI_RELAY_DEFAULT_DELIVERY` | `sync` | Default delivery mode when the inbound `X-OmniPACS-Delivery` header is missing |
 | `OMNI_RELAY_TOKENS` | _(unset)_ | Comma- or space-separated bootstrap tokens; seeded into the store on first run, persisted afterwards |
-| `OMNI_RELAY_TLS_CERT` | _(unset)_ | PEM cert path. Set together with `OMNI_RELAY_TLS_KEY` to bind HTTPS directly |
+| `OMNI_RELAY_TLS_CERT` | _(unset)_ | PEM cert path. Set together with `OMNI_RELAY_TLS_KEY` for operator-supplied HTTPS credentials |
 | `OMNI_RELAY_TLS_KEY` | _(unset)_ | PEM key path |
+| `OMNI_RELAY_DISABLE_TLS` | _(unset)_ | Set to `1` to opt out of TLS entirely (only when a reverse proxy in front terminates HTTPS for you) |
 
-If `OMNI_RELAY_TLS_CERT` / `OMNI_RELAY_TLS_KEY` are unset the relay
-binds plain HTTP. In that case **front it with a reverse proxy** that
-terminates TLS — Caddy, nginx, HAProxy, or the cloud LB of your choice.
-The dev preview in Replit already does this for you.
+**TLS is on by default.** The relay always serves STOW-RS over HTTPS:
+
+* If `OMNI_RELAY_TLS_CERT` / `OMNI_RELAY_TLS_KEY` are set, those
+  operator-supplied credentials are used.
+* Otherwise the relay generates a self-signed cert under
+  `$OMNI_RELAY_SPOOL/tls/` on first boot and reuses it across restarts.
+  Remote OmniRouter installs that talk to a self-signed dev cert should
+  set `verify_tls = false` on their destination — the OmniRouter UI
+  exposes that toggle.
+* If a reverse proxy in front already terminates TLS (Caddy, nginx,
+  HAProxy, or a cloud LB), set `OMNI_RELAY_DISABLE_TLS=1` and the
+  relay will bind plain HTTP. The Replit dev preview is one such proxy.
 
 The local target and tokens are **runtime-editable from the
 dashboard** and persisted with mode `0600` to:

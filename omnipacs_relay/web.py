@@ -276,12 +276,12 @@ async def _handle_stow(
     successes = successes_after
 
     body_out = _stow_response_body(successes, failures)
-    # PS3.18: 200 OK on success/partial success; 409 Conflict when every
-    # instance failed. The PS3.18 response body (with 00081198 failures
-    # and any 00081199 successes) is included with both status codes so
-    # well-behaved clients can introspect what actually happened.
-    status_code = 200 if successes else 409
-    return JSONResponse(content=body_out, status_code=status_code,
+    # The wire contract (mirrored on the OmniRouter STOW client) treats
+    # any well-formed sync request as HTTP 200 + a PS3.18 response body
+    # — successes go in 00081199, failures in 00081198. The OmniRouter
+    # forwarder inspects the body to decide which instances to retry,
+    # so we never short-circuit to a 4xx for partial- or all-failure.
+    return JSONResponse(content=body_out, status_code=200,
                         media_type="application/dicom+json")
 
 
