@@ -105,6 +105,10 @@ async def get_destination_endpoint() -> JSONResponse:
 # (e.g. supplying base_url for DIMSE mode).
 # ---------------------------------------------------------------------------
 class _DimseDestination(BaseModel):
+    # Reject DICOMweb-only fields (base_url, bearer_token, verify_tls,
+    # delivery_mode) when the caller selects a DIMSE mode.
+    model_config = {"extra": "forbid"}
+
     mode: Literal["dicom", "dicom_tls"]
     host: str = Field(..., min_length=1, max_length=255)
     port: int = Field(..., ge=1, le=65535)
@@ -112,6 +116,11 @@ class _DimseDestination(BaseModel):
 
 
 class _DicomWebDestination(BaseModel):
+    # Reject DIMSE-only fields (host, port, aet) when the caller selects
+    # the DICOMweb mode — keeps the wire contract crisp and surfaces
+    # client bugs immediately as 422s.
+    model_config = {"extra": "forbid"}
+
     mode: Literal["dicomweb"]
     base_url: str = Field(..., min_length=8, max_length=2048)
     # ``None`` means "keep existing token unchanged".
