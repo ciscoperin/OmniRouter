@@ -109,6 +109,21 @@ class Forwarder:
         with self._lock:
             self._waiters.pop(sop_uid, None)
 
+    def abandon_sync(self, study_uid: str, sop_uid: str) -> None:
+        """Drop sync-mode bookkeeping for an instance the caller has
+        given up on. Removes the waiter, clears the attempts counter,
+        and removes the inbox file if it's still there.
+
+        Idempotent — safe to call when the worker already processed
+        the entry (success path, or fail-fast path that already called
+        spool.discard_pending).
+        """
+        with self._lock:
+            self._waiters.pop(sop_uid, None)
+            self._attempts.pop((study_uid, sop_uid), None)
+        # Best-effort drop. Returns False if file already gone.
+        spool.discard_by_uid(study_uid, sop_uid)
+
     # ---------------------------------------------------------------
     # Worker loop
     # ---------------------------------------------------------------

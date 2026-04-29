@@ -241,7 +241,7 @@ async def _handle_stow(
         # after the wait below.
         successes.append(_ref_sop_item(sop_class, sop_instance))
         if waiter is not None:
-            waiters.append((sop_instance, waiter, sop_class))  # type: ignore[arg-type]
+            waiters.append((study_uid, sop_instance, waiter, sop_class))  # type: ignore[arg-type]
 
     # Wake the worker right now so it doesn't wait for its idle interval.
     forwarder.kick()
@@ -256,7 +256,7 @@ async def _handle_stow(
     # Sync mode: wait for each spooled instance to be forwarded (or
     # quarantined) before responding. Per-instance timeout caps total wait.
     successes_after: list[dict] = []
-    for sop_instance, waiter, sop_class in waiters:
+    for study_uid, sop_instance, waiter, sop_class in waiters:
         ok, reason = await asyncio.get_running_loop().run_in_executor(
             None, waiter.wait, SYNC_PER_INSTANCE_TIMEOUT_S
         )
@@ -270,7 +270,13 @@ async def _handle_stow(
             failures.append(
                 _failure_item(sop_class, sop_instance, FR_PROCESSING_FAILURE)
             )
-            forwarder.discard_waiter(sop_instance)
+            # Whether the wait timed out or the worker reported failure,
+            # the caller (OmniRouter) now owns the retry. Drop the spool
+            # entry + waiter so a later worker pass can't double-deliver
+            # alongside the caller's retry. Idempotent — the fail-fast
+            # path inside the worker already dropped the file via
+            # spool.discard_pending; on timeout the file is still here.
+            forwarder.abandon_sync(study_uid, sop_instance)
 
     # Replace the tentative successes with the post-wait ones.
     successes = successes_after

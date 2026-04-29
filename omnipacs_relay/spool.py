@@ -170,6 +170,33 @@ class Spool:
         with self._lock:
             self._stats["failed"] += 1
 
+    def discard_by_uid(self, study_uid: str, sop_uid: str) -> bool:
+        """Remove a pending instance from inbox by UID. Idempotent.
+
+        Returns True if a file was found and removed, False otherwise.
+        Used by the sync STOW handler when its waiter times out — we
+        must drop the file so the worker can't deliver it later (which
+        would race the caller's retry and produce a duplicate).
+        """
+        try:
+            safe_study = _safe_uid(study_uid)
+            safe_sop = _safe_uid(sop_uid)
+        except ValueError:
+            return False
+        path = INBOX_DIR / safe_study / f"{safe_sop}.dcm"
+        if not path.exists():
+            return False
+        try:
+            path.unlink(missing_ok=True)
+            try:
+                path.parent.rmdir()
+            except OSError:
+                pass
+            return True
+        except OSError:
+            log.exception("Failed to discard %s", path)
+            return False
+
     def discard_pending(self, entry: SpoolEntry) -> None:
         """Drop a pending instance from the inbox without quarantining.
 

@@ -345,7 +345,17 @@ def scenario_sync_failfast(token: str) -> bool:
     if not failures:
         log(f"[FAIL] expected 00081198 failures, got {payload}")
         return False
-    log(f"[PASS] sync failed fast in {elapsed:.2f}s with PS3.18 failure body")
+    # Critical: after sync failure the spool inbox must be empty so a
+    # future worker pass can't double-deliver alongside the caller's
+    # retry. Allow a brief moment for the worker to finish housekeeping.
+    time.sleep(0.5)
+    s = httpx.get(f"{RELAY_BASE}/api/status", timeout=5, verify=HTTP_VERIFY)
+    s.raise_for_status()
+    queue_depth = s.json()["spool"]["queue_depth"]
+    if queue_depth != 0:
+        log(f"[FAIL] inbox still has {queue_depth} file(s) after sync failure")
+        return False
+    log(f"[PASS] sync failed fast in {elapsed:.2f}s with PS3.18 failure body, inbox drained")
     return True
 
 

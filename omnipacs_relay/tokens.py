@@ -62,7 +62,15 @@ class TokenStore:
 
     def __init__(self, path: Path | None = None) -> None:
         self._lock = threading.RLock()
-        self._path = path or (SPOOL_DIR / "tokens.json")
+        # Resolution order: explicit arg → OMNI_RELAY_TOKEN_FILE env →
+        # default <spool>/tokens.json. The env knob lets operators put
+        # the token store on a separate, more tightly-permissioned
+        # volume from the PHI spool.
+        if path is not None:
+            self._path = path
+        else:
+            env_path = os.environ.get("OMNI_RELAY_TOKEN_FILE", "").strip()
+            self._path = Path(env_path) if env_path else (SPOOL_DIR / "tokens.json")
         # token-string -> TokenRecord. Looked up on the hot path.
         self._by_token: dict[str, TokenRecord] = {}
         # label -> TokenRecord. Looked up by the admin UI.
