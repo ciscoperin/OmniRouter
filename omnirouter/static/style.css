@@ -731,3 +731,142 @@ h3 {
   gap: 10px;
   margin-top: 4px;
 }
+
+/* Wide modal variant for the destination configuration. */
+.modal.modal-wide {
+  width: min(620px, 100%);
+}
+
+/* Mode-specific sub-sections inside the modal body. */
+.mode-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+.mode-section[hidden] {
+  display: none;
+}
+
+.field-help {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.field-help code {
+  font-family: var(--font-mono);
+  background: var(--bg-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+.field-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--good-bg);
+  color: var(--good);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.input-group {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-group:hover {
+  border-color: var(--brand-accent);
+}
+.input-group:focus-within {
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(154, 29, 189, 0.18);
+}
+.input-group input {
+  flex: 1 1 auto;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent;
+  box-shadow: none !important;
+}
+.input-group input:focus {
+  box-shadow: none !important;
+}
+.input-affix {
+  flex: 0 0 auto;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--brand-ink);
+  padding: 0 14px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.input-affix:hover {
+  background: #ead5f0;
+  color: var(--brand-accent);
+}
+
+.field select {
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text);
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e0325' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  padding-right: 32px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field select:hover {
+  border-color: var(--brand-accent);
+}
+.field select:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(154, 29, 189, 0.18);
+}
+
+.field-checkbox > span {
+  margin-bottom: 6px;
+}
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+.checkbox:hover {
+  border-color: var(--brand-accent);
+}
+.checkbox input[type="checkbox"] {
+  accent-color: var(--brand-accent);
+  width: 16px;
+  height: 16px;
+}

@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# OmniRouter runtime cache: holds received DICOM PHI, the persisted
+# destination secret (bearer token), and self-signed TLS keys. Never commit.
+omnicache/

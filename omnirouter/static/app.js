@@ -25,6 +25,14 @@ const els = {
   destHost: document.getElementById("dest-host"),
   destPort: document.getElementById("dest-port"),
   destAet: document.getElementById("dest-aet"),
+  destBaseUrl: document.getElementById("dest-base-url"),
+  destBearer: document.getElementById("dest-bearer"),
+  destDelivery: document.getElementById("dest-delivery"),
+  destVerifyTls: document.getElementById("dest-verify-tls"),
+  bearerToggle: document.getElementById("bearer-toggle"),
+  bearerStatus: document.getElementById("bearer-status"),
+  sectionDimse: document.getElementById("section-dimse"),
+  sectionDicomWeb: document.getElementById("section-dicomweb"),
   openConfigBtn: document.getElementById("open-config"),
   connStateLabel: document.querySelector("#conn-state .conn-label"),
 };
@@ -82,6 +90,18 @@ function setConn(state, label) {
   if (els.connStateLabel) els.connStateLabel.textContent = label;
 }
 
+function describeDestination(d) {
+  if (d.mode === "dicomweb") {
+    const verify = d.verify_tls ? "verified" : "no peer verify";
+    return `STOW-RS → ${d.base_url || "(unconfigured)"} (${d.delivery_mode}, ${verify})`;
+  }
+  const proto =
+    d.mode === "dicom_tls"
+      ? `TLS${d.verify_peer ? ", peer verified" : ", peer not verified"}`
+      : "plain";
+  return `${d.aet}@${d.host}:${d.port}  (${proto})`;
+}
+
 async function fetchStatus() {
   try {
     const r = await fetch("/api/status");
@@ -91,12 +111,7 @@ async function fetchStatus() {
     els.listenPort.textContent = `${s.listening_port}`;
     els.localAet.textContent = s.local_aet;
     els.cacheDir.textContent = s.cache_dir;
-    const d = s.destination;
-    els.destSummary.textContent =
-      `${d.aet}@${d.host}:${d.port}` +
-      (d.use_tls
-        ? `  (TLS${d.verify_peer ? ", peer verified" : ", peer not verified"})`
-        : "  (plain)");
+    els.destSummary.textContent = describeDestination(s.destination);
 
     els.statRecv.textContent = s.router.instances_received;
     els.statFwd.textContent = s.router.instances_forwarded;
@@ -148,22 +163,61 @@ els.clearBtn.addEventListener("click", async () => {
 });
 
 // --- Configuration modal --------------------------------------------------
+function setMode(mode) {
+  const isWeb = mode === "dicomweb";
+  els.sectionDimse.hidden = isWeb;
+  els.sectionDicomWeb.hidden = !isWeb;
+  // Keep tabbing sane: disabled inputs aren't required when hidden.
+  for (const input of els.sectionDimse.querySelectorAll("input")) {
+    input.disabled = isWeb;
+  }
+  for (const input of els.sectionDicomWeb.querySelectorAll("input, select")) {
+    input.disabled = !isWeb;
+  }
+  // Keep verify-tls / delivery sane defaults if still empty.
+  if (isWeb && !els.destDelivery.value) {
+    els.destDelivery.value = "sync";
+  }
+}
+
 function openConfigModal() {
   fetch("/api/destination")
     .then((r) => r.json())
     .then((d) => {
-      els.destHost.value = d.host;
-      els.destPort.value = d.port;
-      els.destAet.value = d.aet;
-      const mode = d.use_tls ? "tls" : "plain";
+      els.destHost.value = d.host || "";
+      els.destPort.value = d.port || "";
+      els.destAet.value = d.aet || "";
+      els.destBaseUrl.value = d.base_url || "";
+      els.destBearer.value = "";
+      els.destBearer.type = "password";
+      els.bearerToggle.textContent = "Show";
+      els.destDelivery.value = d.delivery_mode || "sync";
+      els.destVerifyTls.checked = d.verify_tls !== false;
+
+      if (d.bearer_configured) {
+        els.bearerStatus.hidden = false;
+        els.destBearer.placeholder =
+          "Leave blank to keep current token, or paste a new one";
+      } else {
+        els.bearerStatus.hidden = true;
+        els.destBearer.placeholder = "paste bearer token";
+      }
+
       const radio = els.configForm.querySelector(
-        `input[name="mode"][value="${mode}"]`,
+        `input[name="mode"][value="${d.mode}"]`,
       );
       if (radio) radio.checked = true;
+      setMode(d.mode);
+
       els.configError.hidden = true;
       els.configError.textContent = "";
       els.configOverlay.hidden = false;
-      els.destHost.focus();
+      // Focus the first visible input.
+      if (d.mode === "dicomweb") {
+        els.destBaseUrl.focus();
+      } else {
+        els.destHost.focus();
+      }
     })
     .catch(() => {
       els.configError.textContent = "Could not load current configuration.";
@@ -188,21 +242,73 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !els.configOverlay.hidden) closeConfigModal();
 });
 
+// Mode-radio click → swap the visible field set.
+els.configForm.addEventListener("change", (e) => {
+  if (e.target && e.target.name === "mode") {
+    setMode(e.target.value);
+  }
+});
+
+els.bearerToggle.addEventListener("click", () => {
+  const showing = els.destBearer.type === "text";
+  els.destBearer.type = showing ? "password" : "text";
+  els.bearerToggle.textContent = showing ? "Show" : "Hide";
+});
+
 els.configForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(els.configForm);
   const mode = formData.get("mode");
-  if (mode !== "plain" && mode !== "tls") {
+  if (mode !== "dicom" && mode !== "dicom_tls" && mode !== "dicomweb") {
     els.configError.textContent = "Please select a transfer mode.";
     els.configError.hidden = false;
     return;
   }
-  const payload = {
-    host: String(formData.get("host") || "").trim(),
-    port: Number(formData.get("port")),
-    aet: String(formData.get("aet") || "").trim(),
-    use_tls: mode === "tls",
-  };
+
+  let payload;
+  if (mode === "dicomweb") {
+    const baseUrl = String(formData.get("base_url") || "").trim();
+    if (!baseUrl) {
+      els.configError.textContent = "STOW-RS Base URL is required.";
+      els.configError.hidden = false;
+      return;
+    }
+    if (!/^https:\/\//i.test(baseUrl)) {
+      els.configError.textContent =
+        "STOW-RS Base URL must start with https:// — bearer tokens cannot be sent over plain HTTP.";
+      els.configError.hidden = false;
+      return;
+    }
+    const tokenRaw = String(formData.get("bearer_token") || "");
+    payload = {
+      mode: "dicomweb",
+      base_url: baseUrl,
+      // null = keep existing token; non-empty string = replace.
+      bearer_token: tokenRaw.length > 0 ? tokenRaw : null,
+      verify_tls: formData.get("verify_tls") === "on",
+      delivery_mode: String(formData.get("delivery_mode") || "sync"),
+    };
+  } else {
+    const host = String(formData.get("host") || "").trim();
+    const port = Number(formData.get("port"));
+    const aet = String(formData.get("aet") || "").trim();
+    if (!host) {
+      els.configError.textContent = "Destination Host is required.";
+      els.configError.hidden = false;
+      return;
+    }
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      els.configError.textContent = "Port must be an integer between 1 and 65535.";
+      els.configError.hidden = false;
+      return;
+    }
+    if (!aet) {
+      els.configError.textContent = "AE Title is required.";
+      els.configError.hidden = false;
+      return;
+    }
+    payload = { mode, host, port, aet };
+  }
 
   els.configSave.disabled = true;
   els.configError.hidden = true;

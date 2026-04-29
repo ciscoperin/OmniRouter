@@ -63,7 +63,8 @@
         <h1 class="hero-title">DICOM Routing Service</h1>
         <p class="hero-subtitle">
           Receives studies on the local DICOM port and forwards every instance
-          to your configured destination over secure DICOM TLS or plain DICOM.
+          to your configured destination over plain DICOM, DICOM TLS, or
+          DICOM over HTTPS (DICOMweb STOW-RS).
         </p>
       </section>
 
@@ -140,7 +141,7 @@
       <footer class="page-foot">
         <span>OmniPACS Router</span>
         <span class="dot">•</span>
-        <span>v1.0.1</span>
+        <span>v1.0.2</span>
         <span class="dot">•</span>
         <a href="https://www.omnipacs.com" target="_blank" rel="noopener">
           omnipacs.com
@@ -150,7 +151,7 @@
 
     <!-- Configuration modal ------------------------------------------- -->
     <div id="config-overlay" class="modal-overlay" hidden>
-      <div class="modal" role="dialog" aria-labelledby="config-title">
+      <div class="modal modal-wide" role="dialog" aria-labelledby="config-title">
         <div class="modal-header">
           <h2 id="config-title">Destination Configuration</h2>
           <button id="config-close" class="modal-close" aria-label="Close">
@@ -164,55 +165,125 @@
             destination.
           </p>
 
-          <label class="field">
-            <span>Destination Host / IP</span>
-            <input
-              type="text"
-              id="dest-host"
-              name="host"
-              required
-              maxlength="255"
-              placeholder="pacs.example.org"
-            />
-          </label>
-
-          <div class="field-row">
-            <label class="field">
-              <span>Port</span>
-              <input
-                type="number"
-                id="dest-port"
-                name="port"
-                required
-                min="1"
-                max="65535"
-                placeholder="11112"
-              />
-            </label>
-            <label class="field">
-              <span>AE Title</span>
-              <input
-                type="text"
-                id="dest-aet"
-                name="aet"
-                required
-                maxlength="16"
-                placeholder="REMOTE_PACS"
-              />
-            </label>
-          </div>
-
           <fieldset class="transfer-mode">
             <legend>Transfer Mode</legend>
             <label class="radio">
-              <input type="radio" name="mode" value="plain" />
-              <span>Regular DICOM <em>(unencrypted)</em></span>
+              <input type="radio" name="mode" value="dicom" />
+              <span>Regular DICOM <em>(unencrypted DIMSE)</em></span>
             </label>
             <label class="radio">
-              <input type="radio" name="mode" value="tls" />
-              <span>DICOM TLS <em>(encrypted)</em></span>
+              <input type="radio" name="mode" value="dicom_tls" />
+              <span>DICOM TLS <em>(encrypted DIMSE)</em></span>
+            </label>
+            <label class="radio">
+              <input type="radio" name="mode" value="dicomweb" />
+              <span>DICOM over HTTPS <em>(DICOMweb STOW-RS)</em></span>
             </label>
           </fieldset>
+
+          <!-- DIMSE fields (Regular DICOM + DICOM TLS) -->
+          <div id="section-dimse" class="mode-section">
+            <label class="field">
+              <span>Destination Host / IP</span>
+              <input
+                type="text"
+                id="dest-host"
+                name="host"
+                maxlength="255"
+                placeholder="pacs.example.org"
+              />
+            </label>
+
+            <div class="field-row">
+              <label class="field">
+                <span>Port</span>
+                <input
+                  type="number"
+                  id="dest-port"
+                  name="port"
+                  min="1"
+                  max="65535"
+                  placeholder="11112"
+                />
+              </label>
+              <label class="field">
+                <span>AE Title</span>
+                <input
+                  type="text"
+                  id="dest-aet"
+                  name="aet"
+                  maxlength="16"
+                  placeholder="REMOTE_PACS"
+                />
+              </label>
+            </div>
+          </div>
+
+          <!-- DICOMweb fields (STOW-RS) -->
+          <div id="section-dicomweb" class="mode-section" hidden>
+            <label class="field">
+              <span>STOW-RS Base URL</span>
+              <input
+                type="url"
+                id="dest-base-url"
+                name="base_url"
+                maxlength="2048"
+                placeholder="https://relay.example.com/dicom-web"
+              />
+              <small class="field-help">
+                Must be <code>https://</code>. Endpoint will be
+                <code>&lt;base&gt;/studies/&lt;StudyInstanceUID&gt;</code>.
+              </small>
+            </label>
+
+            <label class="field">
+              <span>
+                Bearer Token
+                <span id="bearer-status" class="field-badge" hidden>
+                  Currently configured
+                </span>
+              </span>
+              <div class="input-group">
+                <input
+                  type="password"
+                  id="dest-bearer"
+                  name="bearer_token"
+                  maxlength="4096"
+                  placeholder="paste token, or leave blank to keep existing"
+                  autocomplete="off"
+                />
+                <button
+                  type="button"
+                  id="bearer-toggle"
+                  class="input-affix"
+                  aria-label="Show/hide token"
+                >
+                  Show
+                </button>
+              </div>
+            </label>
+
+            <div class="field-row">
+              <label class="field">
+                <span>Delivery Mode</span>
+                <select id="dest-delivery" name="delivery_mode">
+                  <option value="sync">
+                    Synchronous (wait for end-to-end ACK)
+                  </option>
+                  <option value="async">
+                    Asynchronous (fire-and-forget)
+                  </option>
+                </select>
+              </label>
+              <label class="field field-checkbox">
+                <span>TLS Verification</span>
+                <label class="checkbox">
+                  <input type="checkbox" id="dest-verify-tls" name="verify_tls" />
+                  <span>Verify peer certificate</span>
+                </label>
+              </label>
+            </div>
+          </div>
 
           <p id="config-error" class="modal-error" hidden></p>
 

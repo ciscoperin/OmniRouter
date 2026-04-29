@@ -2,7 +2,8 @@
 
 Receives studies via C-STORE on ``LOCAL_AET@LISTEN_PORT``, writes them
 to the per-study cache directory, and forwards each instance to the
-configured destination over DICOM TLS.
+configured destination using the egress strategy selected by the current
+``Destination.mode`` (plain DIMSE, DIMSE-TLS, or DICOMweb STOW-RS).
 """
 
 from __future__ import annotations
@@ -17,12 +18,10 @@ from typing import Dict, Optional
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
-from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian
 from pynetdicom import (
     AE,
     ALL_TRANSFER_SYNTAXES,
     StoragePresentationContexts,
-    VerificationPresentationContexts,
     evt,
 )
 from pynetdicom.sop_class import Verification
@@ -34,7 +33,7 @@ from .config import (
     LOCAL_AET,
     get_destination,
 )
-from .tls_util import build_client_ssl_context
+from .forwarders import make_forwarder
 
 log = logging.getLogger("omnirouter.router")
 
@@ -252,94 +251,59 @@ class OmniRouter:
         if not files:
             return
 
-        dest = get_destination()
-        log.info(
-            "Sending study %s containing %d file(s) → %s@%s:%s (%s)",
-            state.study_uid,
-            len(files),
-            dest.aet,
-            dest.host,
-            dest.port,
-            "TLS" if dest.use_tls else "plain",
-        )
-
-        ae = AE(ae_title=LOCAL_AET)
-        ae.requested_contexts = []
-        # Add storage contexts based on the actual SOP classes in the cache.
-        added_contexts: set[str] = set()
+        # Read every cached file once before handing the batch to the
+        # forwarder. Files we can't parse are counted as failures up front.
         datasets: list[tuple[Path, Dataset]] = []
+        unreadable = 0
         for f in files:
             try:
                 ds = dcmread(str(f))
                 datasets.append((f, ds))
-                if ds.SOPClassUID not in added_contexts:
-                    ae.add_requested_context(
-                        ds.SOPClassUID,
-                        [ExplicitVRLittleEndian, ImplicitVRLittleEndian],
-                    )
-                    added_contexts.add(ds.SOPClassUID)
             except Exception:
                 log.exception("Could not read %s for forwarding", f)
+                unreadable += 1
 
-        tls_args = None
-        if dest.use_tls:
-            try:
-                ctx = build_client_ssl_context()
-                tls_args = (ctx, dest.host)
-            except Exception:
-                log.exception("Failed to build TLS context")
-                with self._lock:
-                    self._stats["forward_failures"] += 1
-                return
-
-        try:
-            assoc = ae.associate(
-                dest.host,
-                dest.port,
-                ae_title=dest.aet,
-                tls_args=tls_args,
-            )
-        except Exception:
-            log.exception("Association attempt raised")
+        if not datasets:
             with self._lock:
-                self._stats["forward_failures"] += 1
+                self._stats["forward_failures"] += unreadable
             return
 
-        if not assoc.is_established:
-            log.error(
-                "Association rejected/failed: %s@%s:%s",
-                dest.aet,
-                dest.host,
-                dest.port,
-            )
-            with self._lock:
-                self._stats["forward_failures"] += 1
-            return
+        dest = get_destination()
+        forwarder = make_forwarder(dest)
 
-        try:
-            for f, ds in datasets:
-                status = assoc.send_c_store(ds)
-                if status and getattr(status, "Status", 0xFFFF) == 0x0000:
-                    with self._lock:
-                        self._stats["forwarded"] += 1
-                else:
-                    log.error(
-                        "C-STORE for %s returned status %s",
-                        f.name,
-                        getattr(status, "Status", "n/a"),
-                    )
-                    with self._lock:
-                        self._stats["forward_failures"] += 1
-            with self._lock:
+        log.info(
+            "Sending study %s containing %d file(s) → %s",
+            state.study_uid,
+            len(datasets),
+            forwarder.describe(),
+        )
+
+        result = forwarder.forward(state.study_uid, datasets)
+
+        with self._lock:
+            self._stats["forwarded"] += result.forwarded
+            self._stats["forward_failures"] += result.failed + unreadable
+            # Mark as forwarded only when we actually transmitted something
+            # successfully — leaves the door open for a future retry path.
+            if result.forwarded > 0 and result.failed == 0 and unreadable == 0:
                 state.forwarded = True
+            elif result.forwarded > 0:
+                state.forwarded = True
+
+        if result.failed == 0 and unreadable == 0:
             log.info(
-                "Study %s sent (%d file(s))", state.study_uid, len(datasets)
+                "Study %s sent (%d file(s))",
+                state.study_uid,
+                result.forwarded,
             )
-        finally:
-            try:
-                assoc.release()
-            except Exception:
-                pass
+        else:
+            log.error(
+                "Study %s partially sent (%d ok, %d failed, %d unreadable)",
+                state.study_uid,
+                result.forwarded,
+                result.failed,
+                unreadable,
+            )
 
 
 # Module-level singleton used by the web layer.
